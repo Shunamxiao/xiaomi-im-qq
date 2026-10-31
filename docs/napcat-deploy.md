@@ -263,3 +263,33 @@ NapCat 是**单实例单账号**架构。WebUI 本身已具备扫码登录与快
 - 多账号并行的边界：NapCat 单实例单账号，「添加账号」=切换账号（退出当前）。
   若需多号同时在线，须多实例（独立数据目录+端口），内存允许时再做。
 
+
+## 12. WebUI 配置面板审计修复（2026-10-31 第五轮）
+
+### 问题与修复
+
+1. **account 插件「No configuration schema available」**：
+   `plugin_config_ui` 必须是**数组**（NapCat 判断 `!!module.plugin_config_ui` 并当数组用），
+   导出函数无效。修复：`let plugin_config_ui = []` + plugin_init 内赋值
+   （与官方模板一致）。
+2. **autoreply 配置面板无关键词编辑**：schema 新增 `keywordsText` 多行文本
+   （每行 `匹配词|类型|回复`，类型 prefix/contains），get/set 双向转换，
+   规则与文本互相同步；规则数据仍以 `keywords` 数组为准。
+3. **/webui/extension 报 HTML file not found / dashboard 空白**：
+   autoreply 注册了 `page dashboard`（htmlFile: webui/index.html），
+   但部署时只拷了 index.mjs 没带 webui 构建产物。修复：完整构建
+   （主插件 + src/webui React 单文件）并整包部署。
+4. **重构建后 autoreply 消失（Loaded 2）**：fork 根 package.json 仍是模板默认
+   `name: napcat-plugin-template`，构建生成的精简 package.json 覆盖了手工版，
+   与 plugins.json 的启用键失配。修复：改 fork 身份信息并重新部署。
+
+### 构建环境备忘
+
+- pnpm 11.x 不再读 package.json 的 `pnpm` 字段；构建脚本白名单用
+  `pnpm-workspace.yaml` 的 `allowBuilds: { esbuild: true }`（主插件与 webui
+  子项目各需一份）。
+- dashboard 的 htmlFile 从**插件目录**解析，部署必须整包
+  （index.mjs + package.json + webui/）。
+- 热重载（reloadPlugin）后路由可能丢失（no registered pages）——
+  改动路由/页面后用完整重启验证。
+
