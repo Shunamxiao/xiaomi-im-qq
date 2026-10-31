@@ -170,7 +170,7 @@ function pageJs() {
           if (it.avatarUrl) html += '<img class="mini" src="' + esc(it.avatarUrl) + '">';
           html += '<div class="grow"><b>' + esc(it.nick || it.name) + '</b> <span class="tag">' + esc(it.uin || "未登录") + '</span> <span class="tag ' + (it.running ? "ok" : "") + '">' + (it.running ? "运行中" : "已停止") + '</span>';
           html += '<br><span class="meta">' + esc(it.name) + ' · WebUI ' + esc(String(it.webuiPort || "-")) + ' · OneBot ' + esc(String(it.onebotPort || "-")) + '</span>';
-          if (it.running && it.login && !it.login.isLogin && it.login.qrcodeurl) html += '<div style="margin-top:8px"><img src="' + esc(it.login.qrcodeurl) + '" style="width:150px;border:6px solid #fff;border-radius:8px"><br><span class="meta">用要添加的 QQ 扫码登录,成功后自动绑定</span></div>';
+          if (it.running && it.login && !it.login.isLogin) html += '<div style="margin-top:8px"><img src="' + Q('qr') + '&name=' + encodeURIComponent(it.name) + '&t=' + Date.now() + '" style="width:150px;border:6px solid #fff;border-radius:8px" onerror="this.style.opacity=0.2"><br><span class="meta">用要添加的 QQ 扫码登录,成功后自动绑定</span></div>';
           else if (it.running && it.login && !it.login.isLogin) html += '<div style="margin-top:6px" class="meta">等待二维码… ' + esc(it.login.phase || "") + '</div>';
           html += '</div>';
           if (it.running) html += '<button class="danger" data-act="inst-stop" data-name="' + esc(it.name) + '">停止</button>';
@@ -267,6 +267,19 @@ const plugin_init = async (ctx) => {
       writeAutoLoginAccount(uin);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ ok: false, error: String((e && e.message) || e) }); }
+  });
+  ctx.router.getNoAuth('/qr', async (req, res) => {
+    if (!checkKey(req, req.url)) return res.status(401).json({ error: 'key 无效' });
+    try {
+      const name = String((req.query && req.query.name) || 'main');
+      const m = await getManager();
+      const p = m.qrcodePath(name);
+      if (!p) return res.status(404).json({ error: 'no qrcode' });
+      const buf = fs.readFileSync(p);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(buf);
+    } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
   });
   ctx.router.getNoAuth('/instances', async (req, res) => {
     if (!checkKey(req, req.url)) return res.status(401).json({ error: 'key 无效' });

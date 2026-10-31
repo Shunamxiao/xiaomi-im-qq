@@ -70,7 +70,7 @@ export function instanceScript(inst) {
     'export NAPCAT_WEBUI_PREFERRED_PORT=' + inst.webuiPort,
     'Xvfb :' + inst.display + ' -screen 0 1280x720x24 >' + log + ' 2>&1 &',
     'sleep 2',
-    'DISPLAY=:' + inst.display + ' LD_PRELOAD=/usr/lib/fakehost.so exec ' + QQ_BIN + ' --no-sandbox --disable-dev-shm-usage >>' + log + ' 2>&1'
+    'DISPLAY=:' + inst.display + ' LD_PRELOAD=/usr/lib/fakehost.so exec ' + QQ_BIN + ' --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer --disable-gpu-compositing >>' + log + ' 2>&1'
   ].join('\n') + '\n';
 }
 function writeInstanceFiles(inst) {
@@ -198,6 +198,16 @@ async function pollBinding(reg, inst) {
   saveRegistry(reg);
   await killInstance(inst.home);
   await startInstance(inst.name);
+}
+
+// 实例二维码图片路径(NapCat 保存到 <workdir>/cache/qrcode.png)
+export function qrcodePath(name) {
+  const reg = loadRegistry();
+  const inst = name === 'main' ? MAIN_INSTANCE : reg.instances[name];
+  if (!inst) return '';
+  const wd = inst.workdir || '/root/.config/QQ';
+  const p = wd + '/cache/qrcode.png';
+  try { return fs.existsSync(p) ? p : ''; } catch { return ''; }
 }
 
 // —— 对外 API ——
