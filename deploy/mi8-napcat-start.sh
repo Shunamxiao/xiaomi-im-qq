@@ -4,6 +4,12 @@ P=/data/data/com.termux/files/usr/bin/proot-distro
 MP=/data/adb/magisk/magiskpolicy
 SD=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/napcat/shm
 RF=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/napcat/rootfs
+STAGE=/data/data/com.termux/files/home
+# 部署同步：暂存区(termux home) → 容器，保证每次启动用的是最新机器人文件
+[ -f "$STAGE/autoreply.js" ] && cp "$STAGE/autoreply.js" "$RF/root/autoreply.js"
+[ -f "$STAGE/autoreply-rules.json" ] && cp "$STAGE/autoreply-rules.json" "$RF/root/autoreply-rules.json"
+[ -f "$STAGE/onebot11-config.json" ] && cp "$STAGE/onebot11-config.json" "$RF/root/Napcat/opt/QQ/resources/app/app_launcher/napcat/config/onebot11_1457278554.json"
+RF=/data/data/com.termux/files/usr/var/lib/proot-distro/containers/napcat/rootfs
 $MP --live "allow magisk app_data_file file { create open read write getattr setattr lock map execute execute_no_trans unlink append }" >/dev/null 2>&1
 $MP --live "allow magisk app_data_file dir { create add_name remove_name open read write getattr search rmdir reparent }" >/dev/null 2>&1
 [ -d "$SD" ] && chmod 1777 "$SD"
