@@ -121,3 +121,30 @@ NapCat 与网关之间用反向隧道（autossh -R 或 frp），OneBot WS 不直
 - 单点：mi8 断电/断网 = 协议端掉线；Agent 框架需容忍 poll_inbox 超时；恢复后 NapCat -q 快速登录自愈（已具备）；
 - 账号边界：官方频道机器人与个人号是两个身份，频道内不可冒充个人号发言——如需个人号发频道只能人工，属腾讯侧限制，无技术绕行；
 - 合规：协议端与自动化回复违反 QQ 用户协议，自担风险（现状已接受）。
+
+## 6. 二开与分支调研（2026-10-31 补充）
+
+结论：**NapCat 不存在「更完善的分支」可切换；二开的正确层次是我们自己的 qq-gateway 层，协议端保持跟随上游。**
+
+### 6.1 NapCat 官方仓库分支与 fork 实查
+
+| 项 | 结果 |
+| --- | --- |
+| 分支（branches 实查） | 仅 main + copilot/dependabot 等 CI/修复分支，无功能增强分支 |
+| fork（按 star 排序前 20 实查） | 全部 ≤3 star，均为个人备份 fork，无功能增强 fork |
+| 维护活跃度 | 最新 release v4.18.42 于 2026-10-30 发布，接近日更，无需另寻分支 |
+| 频道（guild）官方态度 | issue #1828「[FEAT] 支持 QQ 频道相关 API」于 2026-05-12 关闭，维护者回复「频道不支持哦」——官方明确不做，切分支/fork 都解决不了 |
+
+### 6.2 替代协议端的频道支持（侧证频道路线收缩）
+
+| 项目 | 结果 |
+| --- | --- |
+| Lagrange.Core（master 源码树实查） | 全树已无任何 guild 相关代码（早期版本曾支持 send_guild_channel_msg，现已移除）；且与 NapCat 同为电脑端登录，同端互踢，无法共存 |
+| LLOneBot | LiteLoaderQQNT 插件形态，需桌面 QQNT 图形环境，不适合 mi8 proot 无头部署；GitHub API 限流未能完成 star/活跃度核验（标注为未核验） |
+| 官方 QQ 机器人开放平台 | 频道 API 唯一官方稳定路线，维持 3.2 节决策不变 |
+
+### 6.3 二开定位决策
+
+- 协议端（NapCat）：不当二开对象。跟随上游锁版本（升级前查 issue 区，见 docs/napcat-deploy.md 第 5 节），把二开投入放在回报明确的层。
+- 应用层（本仓库）：qq-gateway = 规则引擎 + 收件箱队列 + MCP Server + 频道模块，全部自有代码，是二开完善的唯一层次。
+- 可参考的现成实现（仅作参考，不引入依赖）：OmniQQ-MCP（74 工具、Action 透传）、ptrel1/napcat_mcp、Derpyu520/qq-bridge（3348 星，OneBot v11 + DeepSeek Agent）、fumingyang2004/Tulpa（498 星，MCP 访问 QQ）。
