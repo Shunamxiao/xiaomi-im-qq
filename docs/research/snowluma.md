@@ -42,6 +42,19 @@ write（invoke_action 全量写操作）。连 OneBot HTTP 端点即启用执行
    （send_* 全集已核对：msg/image/record/forward/ark/poke/notice/sign/qzone 等，
    无频道）。
 
+### ptrace 实测结论（2026-10-31，决定性）
+
+在 napcat 容器（proot Debian）内实测 ptrace 可用性：
+子进程 PTRACE_TRACEME + execl + 父进程 waitpid 的最小探针
+（tests/ptrace-probe.c）**挂死**——子进程的生命周期事件被 proot 的
+tracer 消费，探针的 waitpid 永远等不到，ptrace 注入在 proot 下
+**确认不可用**。
+
+结论：SnowLuma 的 ptrace 注入机制无法在 mi8 的 proot 容器内工作，
+SnowLuma 路线在本设备上排除。NapCat 的加载式注入（随 QQ 启动加载，
+不用 ptrace）是 proot 环境下唯一可行的 hook 方式，这也是当前栈
+继续使用 NapCat 的决定性理由。
+
 ## 4. 结论
 
 - 自动回复/Agent 化主链路维持 NapCat + OmniQQ-MCP 不变：
