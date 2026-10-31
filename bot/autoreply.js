@@ -19,9 +19,10 @@ function matchReply(rules, kind, senderId, selfId, text) {
     const list = kind === "private" ? rules.private.whitelist : rules.group.whitelist;
     if (list.length > 0 && !list.map(String).includes(String(senderId))) return null;
     for (const rule of rules.keywords || []) {
-        if ((rule.match || "").length > 0 && text.includes(rule.match)) {
-            return rule.reply;
-        }
+        const m = rule.match || "";
+        if (m.length === 0) continue;
+        const hit = rule.matchType === "prefix" ? text.startsWith(m) : text.includes(m);
+        if (hit) return rule.reply;
     }
     if (kind === "private" && rules.private.defaultReply) {
         return rules.private.defaultReply;
