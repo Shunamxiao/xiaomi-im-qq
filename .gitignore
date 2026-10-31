@@ -3,3 +3,5 @@ node_modules/
 
 # 插件二开独立仓库（fork: Shunamxiao/napcat-plugin-template）
 plugin/
+plugin-template/
+plugin-template/
