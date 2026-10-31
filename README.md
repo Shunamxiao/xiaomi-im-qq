@@ -1,6 +1,6 @@
 # xiaomi-im-qq
 
-小米8（mi8）上的 QQ 机器人栈：NapCat（OneBot 11）+ 自动回复机器人，
+小米8（mi8）上的 QQ 机器人栈：NapCat（OneBot 11）+ 自动回复插件 + MCP server，
 以及 QQ 平板版（ImPad）伪装的调研与半成品修复。
 
 ## 结构
@@ -9,12 +9,35 @@
 | --- | --- | --- |
 | `bot/autoreply.js` | 自动回复机器人（OneBot 11 WS 客户端） | `/root/autoreply.js` |
 | `bot/autoreply-rules.json` | 回复规则（总开关/关键词/白名单） | `/root/autoreply-rules.json` |
+| `plugin/` | 自动回复 NapCat 插件（官方模板 fork，pnpm 构建） | 容器内插件目录 |
+| `plugins/account-manager/` | 账号管理插件（状态/切换/扫码添加，单文件 ESM） | 容器内插件目录 |
+| `mcp/` | QQ MCP server（18 个工具，HTTP :8000，AI Agent 接入） | `~/qq-mcp/qq-mcp-server.py`（termux home） |
 | `deploy/mi8-napcat-start.sh` | root 常驻启动脚本（QQ+机器人，幂等） | `/data/adb/bin/mi8-napcat-start.sh` |
 | `deploy/mi8-napcat-service.sh` | Magisk service.d 开机自启包装 | `/data/adb/service.d/mi8-napcat.sh` |
 | `deploy/fakehost.c` | 容器内主机名伪装 LD_PRELOAD 源码 | `/usr/lib/fakehost.so`（容器内编译） |
 | `deploy/onebot11-config.json` | OneBot 正向 WS 配置（仅 127.0.0.1:3001） | `napcat/config/onebot11_1457278554.json` |
 | `tests/` | 单元测试 + 设备冒烟测试 | — |
-| `docs/` | 部署文档与 ImPad 调研 | — |
+| `docs/` | 部署/插件开发/接入文档与 ImPad 调研 | — |
+
+## 快速开始
+
+1. 自动回复规则：插件 API
+   `GET/POST /plugin/napcat-plugin-autoreply/api/config?key=x524980520`（WebUI :6099），
+   或 MCP 工具 `qq_get_rules` / `qq_set_rules`；规则以 keywords 数组为准。
+2. AI Agent 接入：MCP 端点 `POST /mcp`（HTTP :8000），工具清单与框架配置见
+   `docs/ai-integration.md`。
+3. 插件改动：本地 `pnpm build` → 整包部署 → 验证 Loaded N plugins，
+   完整闭环与坑位见 `docs/plugin-dev-notes.md`。
+
+## 文档索引
+
+| 文档 | 内容 |
+| --- | --- |
+| `docs/napcat-deploy.md` | NapCat 部署史：启动脚本、伪装、排障、账号插件机制 |
+| `docs/plugin-dev-notes.md` | 插件开发经验：生命周期、路由大坑、构建部署闭环、调试服务 |
+| `docs/ai-integration.md` | MCP 工具清单、Agent 框架接入配置、部署与任务配方 |
+| `docs/qq-cloud-agent-mcp.md` | 云端 Agent 化调研：MCP 网关、频道发布、多账号方向 |
+| `docs/impad-tablet-spoof.md` | ImPad 平板伪装调研（已停用） |
 
 ## 运行状态（2026-10-31）
 
