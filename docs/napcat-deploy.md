@@ -220,3 +220,46 @@ OneBot 把自己发出的回复再上报给 bot，bot 又回复，循环 3 轮�
   proot 容器后重跑启动脚本即可。
 - **napcat.out 无新时间戳** = QQ 根本没重启，先查进程再查日志。
 
+
+## 11. 账号管理插件与多账号机制（2026-10-31 第四轮）
+
+### 核实结论：为什么后台没有「添加账号」入口
+
+NapCat 是**单实例单账号**架构。WebUI 本身已具备扫码登录与快速登录 API
+（`/api/QQLogin/GetQQLoginQrcode`、`CheckLoginStatus`、`GetQuickLoginList`、
+`SetQuickLogin`、`RestartNapCat`），但**已登录状态下全部拒绝**（QQ Is Logined）。
+此前启动命令带 `-q 1457278554` 固定账号，重启后立即自动登录，
+所以 WebUI 里永远看不到添加账号界面。
+
+### 改造（已完成）
+
+1. 启动脚本去掉 `-q`；改由 `webui.json.autoLoginAccount` 控制自动登录
+   （NapCat 内部：无 -q 时 WebUI 启动后执行 requestQuickLogin(autoLoginAccount)，
+   失败则二维码兜底）。
+2. 新增插件 `napcat-plugin-account`（源码 `plugins/account-manager/`，单文件 ESM）：
+   - `GET /plugin/napcat-plugin-account/api/status?key=…`：登录状态 / 当前账号 /
+     历史账号列表（quickList）/ autoLoginAccount。
+   - `POST /switch {uin}`：写 autoLoginAccount + 调 RestartNapCat 重启切换。
+   - `POST /add`：清空 autoLoginAccount + 重启 → 进入扫码模式，
+     页面轮询显示二维码（CheckLoginStatus 的 qrcodeurl）。
+   - `POST /set-auto {uin}`：扫码成功后把新号设为自动登录。
+   - 管理页：`/plugin/napcat-plugin-account/api/page?key=x524980520`。
+   - 鉴权：NoAuth 路由 + accessKey 校验（默认与 WebUI token 相同，可配置）。
+   - 插件经 HTTP 自调本机 WebUI（127.0.0.1:6099）：
+     `/api/auth/login` 传 `sha256(token + '.napcat')` 得 Credential（在 data 字段），
+     后续请求带 `Authorization: Bearer <Credential>`。
+
+### 关键逆向发现（复用价值）
+
+- 插件 router 的 handler 收到的 `req` 是包装对象：
+  `{ path, method, query, body, headers, params, raw }`——**没有 url**，
+  query 从 `req.query` 取；`res` 只有 `status/json/send/setHeader/sendFile/redirect/raw`，
+  **没有 end**。
+- WebUI 所有响应统一 `{code, data, message}` 包装；`code!==0` 为失败。
+- 「插件调试服务」napcat-plugin-debug（用户从商店安装，8998 端口）：
+  JSON-RPC over WS，支持 `reloadPlugin` / `writeFile`（限插件目录）/
+  `setPluginStatus` 等——**热部署闭环**：scp → cp 进插件目录 → reloadPlugin，
+  无需重启 QQ。
+- 多账号并行的边界：NapCat 单实例单账号，「添加账号」=切换账号（退出当前）。
+  若需多号同时在线，须多实例（独立数据目录+端口），内存允许时再做。
+
