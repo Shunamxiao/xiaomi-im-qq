@@ -6,5 +6,11 @@
   "main": "index.mjs",
   "description": "QQ 账号状态 / 快速切换 / 扫码添加账号",
   "author": "Shunamxiao",
-  "napcat": { "tags": ["工具"], "minVersion": "4.14.0" }
+  "napcat": {
+    "tags": [
+      "工具"
+    ],
+    "minVersion": "4.14.0",
+    "settingsPage": "dashboard"
+  }
 }

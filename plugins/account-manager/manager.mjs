@@ -101,6 +101,7 @@ function rawRequest(port, path, body, headers) {
   });
 }
 const credCache = new Map(); // webuiPort -> {token, cred, time}
+const statusCache = new Map(); // name -> {ts, data}  短 TTL 缓存,避免轮询反复打实例 WebUI
 async function loginInstance(inst, token) {
   const r = await rawRequest(inst.webuiPort, '/api/auth/login', { hash: crypto.createHash('sha256').update(token + '.napcat').digest('hex') });
   const cred = (r.data && r.data.Credential) || r.Credential;
@@ -136,6 +137,8 @@ function tcpProbe(port, timeout = 1500) {
 
 // —— 单实例状态 ——
 async function instanceStatus(inst) {
+  const cached = statusCache.get(inst.name);
+  if (cached && Date.now() - cached.ts < 8000) return cached.data;
   const running = isRunning(inst.home);
   const st = {
     name: inst.name, uin: inst.uin || '', home: inst.home, webuiPort: inst.webuiPort,
@@ -168,6 +171,7 @@ async function instanceStatus(inst) {
       }
     } catch (e) { st.login.phase = 'webui-error: ' + String((e && e.message) || e).slice(0, 80); }
   }
+  statusCache.set(inst.name, { ts: Date.now(), data: st });
   return st;
 }
 
@@ -274,4 +278,29 @@ export async function stopInstance(name) {
   try { fs.unlinkSync(CMD_DIR + '/' + name + '.start'); } catch {}
   await killInstance(inst.home);
   return { ok: !isRunning(inst.home) };
+}
+
+// 手动刷新登录二维码(会请求 QQ 接口,仅由用户操作触发,避免高频轮询触发风控)
+export async function refreshQrcode(name) {
+  const reg = loadRegistry();
+  const inst = name === 'main' ? MAIN_INSTANCE : reg.instances[name];
+  if (!inst) throw new Error('实例不存在: ' + name);
+  if (!isRunning(inst.home)) throw new Error('实例未运行');
+  statusCache.delete(name);
+  const r = await webuiCall(inst, '/api/QQLogin/RefreshQRcode', {});
+  return r;
+}
+
+// 删除实例:先停进程,再清注册表,最后删数据目录(main 受保护不可删)
+export async function deleteInstance(name) {
+  const reg = loadRegistry();
+  const inst = reg.instances[name];
+  if (!inst) throw new Error('实例不存在: ' + name);
+  if (inst.protected) throw new Error('主实例不可删除');
+  try { await killInstance(inst.home); } catch {}
+  delete reg.instances[name];
+  saveRegistry(reg);
+  statusCache.delete(name);
+  try { fs.rmSync(inst.home, { recursive: true, force: true }); } catch (e) { /* 目录可能被占用,忽略 */ }
+  return { ok: true, name };
 }

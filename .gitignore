@@ -5,3 +5,8 @@ node_modules/
 plugin/
 plugin-template/
 plugin-template/
+_*.mjs
+_*.py
+.t*.js
+.probe*
+*.bak

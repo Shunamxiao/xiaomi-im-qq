@@ -190,3 +190,14 @@ qq_groups                  → 在哪些群、各群自动回复开关
 - NapCat 无频道发送能力（4.18.42），频道发布需走官方 QQ 机器人开放平台（见 docs/qq-cloud-agent-mcp.md）；
 - MCP server 与 QQ 生命周期解耦：QQ 重启期间 WS 断开并自动重连，HTTP 端点始终可用。
 
+
+## 14. MCP 监听与工具更新（2026-11-01）
+
+- 监听地址:`::`(IPv6 双栈),端口 **8899**(原 8000/8801 已停用;8801 被 transmission 占用)。
+- 鉴权:可选,设置环境变量 `MCP_TOKEN` 后要求请求头 `X-MCP-Token` 或 `?token=`。
+- 启动:`cd /data/data/com.termux/files/home/qq-mcp && nohup python3 qq-mcp-server.py > server.log 2>&1 &`(注意用 nohup+disown,`setsid` 组合在该 shell 下会被回收)。
+- 工具 24 个,新增 6 个实例管理:qq_instances / qq_instance_add / qq_instance_start /
+  qq_instance_stop / qq_instance_delete / qq_instance_qr。
+- 接入示例(openclaw/omp 等):MCP HTTP/JSON-RPC endpoint `http://<host>:8899/mcp`,
+  IPv6 直连 `http://[2408:8256:1475:2258:4a2c:a0ff:fe63:d831]:8899/mcp` 或域名
+  `http://mi.theworld.codes:8899/mcp`。

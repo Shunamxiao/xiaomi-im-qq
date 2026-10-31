@@ -23,3 +23,40 @@ proot 容器内多 QQ 实例**可行**，已落地为 account-manager 插件的�
 - 停止/启动：管理页实例卡片按钮（停止只杀对应 HOME 的进程；主实例禁停）。
 - registry：容器内 /root/qq-accounts/registry.json；端口分配见 next.onebot/webui/display。
 - 已知现象：instance-add 偶发 {code:-1}，多为请求体被 shell 转义损坏（客户端问题），重试即可；插件日志无异常。
+## 13. 多账号配置中心与 WebUI 设置页二开（2026-11-01）
+
+### WebUI「设置」按钮二开
+
+- 插件列表 API(/api/Plugin/List)新增字段 `settingsPage`(读 `package.json.napcat.settingsPage`)。
+- 前端 bundle `static/assets/plugin-*.js` 已 patch:插件声明 settingsPage 时,「设置」直接跳转
+  `/plugin/<id>/page/<settingsPage>`;未声明时回退原表单面板。
+- 当前:account 与 autoreply 均声明 `settingsPage: "dashboard"`。
+- 备份:napcat.mjs.bak-settingspage、plugin-*.js.bak-settingspage(NapCat 升级会被覆盖,需重打)。
+
+### 账号配置中心(account 插件)
+
+- `GET /plugin/napcat-plugin-account/api/account-rules?name=<实例名>&key=` —— 代理读取该实例
+  autoreply 配置(主实例用插件配置 token,子实例读 workdir/config/webui.json)。
+- `POST /plugin/napcat-plugin-account/api/account-rules {name, config, key}` —— 整份回写。
+- 页面:每个运行中且已登录的实例卡片有「配置」按钮,内联编辑:私聊开关/兜底、
+  关键词规则表(增删行)、群聊开关、仅@、冷却、随机延迟、群级规则 JSON。
+
+### 群级规则(autoreply)
+
+- 数据模型:`groupRules[groupId] = { enabled?, atOnly?, keywords? }`。
+- 语义:未配置→全局行为;enabled=false→整群跳过;keywords 非空→仅用群规则;
+  atOnly 群级覆盖全局。
+- 编辑载体 `groupRulesText`(JSON)由结构化规则派生,非法 JSON 忽略不覆盖。
+
+### 实例删除与二维码
+
+- `POST /instance-delete {name}`:停止进程→清 registry→删数据目录;main 受保护。
+- `POST /instance-qr {name}`:手动刷新二维码(唯一会请求 QQ 接口的操作)。
+- 页面轮询 12s;实例状态 8s TTL 缓存;二维码图片走本地 PNG 代理
+  (`/api/qr?name=`),不再持续请求 QQ。
+
+### MCP
+
+- 监听 `::`(IPv6 双栈):8899(CONFIG:~/.config 见 docs/ai-integration.md),可选 `MCP_TOKEN`。
+- 工具 24 个:新增 qq_instances / qq_instance_add / qq_instance_start /
+  qq_instance_stop / qq_instance_delete / qq_instance_qr。

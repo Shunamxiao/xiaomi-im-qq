@@ -2,11 +2,13 @@
 """QQ MCP Server — 纯标准库实现，零第三方依赖（除 websockets）。
 
 WS 连接 NapCat OneBot (127.0.0.1:3001)
-HTTP 暴露 MCP JSON-RPC (0.0.0.0:8000)
+HTTP 暴露 MCP JSON-RPC (双栈 8899,可选 token 鉴权)
 """
 
 import asyncio
 import json
+import os
+import socket
 import threading
 import time
 import uuid
@@ -17,8 +19,9 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import websockets
 
 NAPCAT_WS = "ws://127.0.0.1:3001"
-MCP_HOST = "0.0.0.0"
-MCP_PORT = 8000
+MCP_HOST = os.environ.get("MCP_HOST", "::")   # 双栈监听(密决:域名仅 AAAA)
+MCP_PORT = int(os.environ.get("MCP_PORT", "8899"))
+MCP_TOKEN = os.environ.get("MCP_TOKEN", "")   # 非空时要求 X-MCP-Token 头或 ?token=
 WEBUI_BASE = "http://127.0.0.1:6099"
 PLUGIN_KEY = "x524980520"
 MSG_BUF = deque(maxlen=200)
@@ -190,6 +193,19 @@ def _dispatch(name, args):
         return result
     if name == "qq_groups":
         return _plugin_api("/plugin/napcat-plugin-autoreply/api/groups")
+    # ── 多实例管理（account 插件）──
+    if name == "qq_instances":
+        return _plugin_api("/plugin/napcat-plugin-account/api/instances")
+    if name == "qq_instance_add":
+        return _plugin_api("/plugin/napcat-plugin-account/api/instance-add", "POST", {})
+    if name == "qq_instance_start":
+        return _plugin_api("/plugin/napcat-plugin-account/api/instance-start", "POST", {"name": str(args["name"])})
+    if name == "qq_instance_stop":
+        return _plugin_api("/plugin/napcat-plugin-account/api/instance-stop", "POST", {"name": str(args["name"])})
+    if name == "qq_instance_delete":
+        return _plugin_api("/plugin/napcat-plugin-account/api/instance-delete", "POST", {"name": str(args["name"])})
+    if name == "qq_instance_qr":
+        return _plugin_api("/plugin/napcat-plugin-account/api/instance-qr", "POST", {"name": str(args["name"])})
     raise ValueError(f"Unknown tool: {name}")
 
 
@@ -212,14 +228,32 @@ MCP_TOOLS = [
     {"name": "qq_get_rules", "description": "获取自动回复插件配置（关键词规则、私聊/群聊开关、黑白名单）", "inputSchema": {"type": "object", "properties": {}, "required": []}},
     {"name": "qq_set_rules", "description": "设置自动回复关键词规则，每行一条：匹配词|类型|回复（类型 prefix=前缀匹配 / contains=包含匹配，可省略，回复中可含 |）", "inputSchema": {"type": "object", "properties": {"keywordsText": {"type": "string"}}, "required": ["keywordsText"]}},
     {"name": "qq_groups", "description": "获取群列表及各群自动回复开关状态", "inputSchema": {"type": "object", "properties": {}, "required": []}},
+    {"name": "qq_instances", "description": "列出全部 QQ 实例(主实例+多账号实例):绑定账号/昵称/运行状态/登录状态/端口", "inputSchema": {"type": "object", "properties": {}, "required": []}},
+    {"name": "qq_instance_add", "description": "创建新的 QQ 实例(独立数据与端口),创建后自动启动并等待扫码登录", "inputSchema": {"type": "object", "properties": {}, "required": []}},
+    {"name": "qq_instance_start", "description": "启动指定 QQ 实例", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "实例名,如 acc-6101"}}, "required": ["name"]}},
+    {"name": "qq_instance_stop", "description": "停止指定 QQ 实例", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "qq_instance_delete", "description": "删除指定 QQ 实例(不可恢复,会先停止进程再删除数据目录;主实例不可删)", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "qq_instance_qr", "description": "手动刷新指定实例的登录二维码(会请求 QQ 接口,仅在需要扫码时调用)", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
 ]
 
 
 # ── HTTP 服务 ────────────────────────────────────────────────
 
 class MCPHandler(BaseHTTPRequestHandler):
+    def _authorized(self):
+        if not MCP_TOKEN:
+            return True
+        if self.headers.get("X-MCP-Token", "") == MCP_TOKEN:
+            return True
+        if "token=" in self.path and self.path.split("token=", 1)[1].split("&")[0] == MCP_TOKEN:
+            return True
+        return False
+
     def do_POST(self):
-        if self.path != "/mcp":
+        if not self._authorized():
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        if self.path.split("?")[0] != "/mcp":
             self.send_response(404)
             self.end_headers()
             return
@@ -276,6 +310,11 @@ if __name__ == "__main__":
     t = threading.Thread(target=_ws_thread, daemon=True)
     t.start()
     _ready.wait(timeout=10)
-    server = MCPHTTPServer((MCP_HOST, MCP_PORT), MCPHandler)
+    if ":" in MCP_HOST:
+        class MCPHTTPServer6(MCPHTTPServer):
+            address_family = socket.AF_INET6
+        server = MCPHTTPServer6((MCP_HOST, MCP_PORT), MCPHandler)
+    else:
+        server = MCPHTTPServer((MCP_HOST, MCP_PORT), MCPHandler)
     print(f"MCP HTTP listening on {MCP_HOST}:{MCP_PORT}", flush=True)
     server.serve_forever()
