@@ -98,6 +98,11 @@ const pageHtml = () => '<!doctype html><html lang=zh><head><meta charset=utf-8><
   + '.ok{background:#e6f7e9;color:#14702e}.warn{background:#fff4e0;color:#8a5a00}.off{background:#f2f2f2;color:#888}'
   + '#qr img,.inst-qr img{max-width:260px;width:100%;border:8px solid #fff;border-radius:10px}'
   + '.muted{color:#888;font-size:12px}.meta{font-size:12px;color:#666}'
+  + '.toast{position:fixed;top:14px;right:14px;background:#222;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;z-index:99;box-shadow:0 4px 14px rgba(0,0,0,.2)}'
+  + '.toast.err{background:#c0392b}'
+  + '.inst{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0}'
+  + 'img.mini{width:36px;height:36px;border-radius:50%}'
+  + '.grow{flex:1}'
   + '</style></head><body><h1>QQ 账号管理</h1><div id=app>loading</div>'
   + '<div id=inst></div>'
   + '<div class=card id=qr style=display:none><h2>主实例扫码登录</h2><div id=qrbody></div><p class=muted>使用手机 QQ 扫码。成功后可点击「设为自动登录」。</p></div>'
@@ -161,7 +166,10 @@ function pageJs() {
       if (Array.isArray(insts) && insts.length) {
         html += '<div class="card"><h2>多实例列表</h2>';
         for (const it of insts) {
-          html += '<div class="row"><div style="flex:1"><b>' + esc(it.name) + '</b> <span class="tag ' + (it.running ? "ok" : "") + '">' + (it.running ? "运行中" : "已停止") + '</span></div>';
+          html += '<div class="inst">';
+          if (it.avatarUrl) html += '<img class="mini" src="' + esc(it.avatarUrl) + '">';
+          html += '<div class="grow"><b>' + esc(it.nick || it.name) + '</b> <span class="tag">' + esc(it.uin || "未登录") + '</span> <span class="tag ' + (it.running ? "ok" : "") + '">' + (it.running ? "运行中" : "已停止") + '</span>';
+          html += '<br><span class="meta">' + esc(it.name) + ' · WebUI ' + esc(String(it.webuiPort || "-")) + ' · OneBot ' + esc(String(it.onebotPort || "-")) + '</span></div>';
           if (it.running) html += '<button class="danger" data-act="inst-stop" data-name="' + esc(it.name) + '">停止</button>';
           else html += '<button data-act="inst-start" data-name="' + esc(it.name) + '">启动</button>';
           html += "</div>";
@@ -174,19 +182,31 @@ function pageJs() {
       else if (!L.isLogin) { qr.style.display = "block"; qb.textContent = "等待二维码… 阶段: " + (L.phase || "无") + (L.error ? " / " + L.error : ""); }
       else qr.style.display = "none";
     }
-    async function doSwitch(name){ if (!confirm("切换到 " + name + "?将重启 NapCat 并退出当前账号。")) return; const r = await post("switch", {uin: name}); alert(r.ok ? "已发起切换" : "失败: " + r.error); setTimeout(refresh, 5000); }
-    async function doInstAdd(){ if (!confirm("创建新账号实例?")) return; const r = await post("instance-add"); if (r.ok || r.name) { alert("已创建并启动,稍后页面出现二维码"); setTimeout(refresh, 6000); } else alert("失败: " + (r.error || JSON.stringify(r).slice(0,120))); }
-    async function doInstStart(name){ const r = await post("instance-start", {name}); alert(r.ok ? "已启动" : "失败: " + r.error); setTimeout(refresh, 5000); }
-    async function doInstStop(name){ if (!confirm("停止实例 " + name + "?")) return; const r = await post("instance-stop", {name}); alert(r.ok ? "已停止" : "失败: " + r.error); setTimeout(refresh, 5000); }
+    function toast(msg, err){
+      const d = document.createElement("div"); d.className = "toast" + (err ? " err" : "");
+      d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 3200);
+    }
+    const armed = new Map();
+    function needConfirm(el, label, fn){
+      const id = label + (el.getAttribute("data-name") || "");
+      if (armed.get(id)) { armed.delete(id); el.textContent = label; fn(); return; }
+      armed.set(id, true); el.textContent = "确认?";
+      setTimeout(() => { armed.delete(id); el.textContent = label; }, 3000);
+    }
+    async function doSwitch(name){ const r = await post("switch", {uin: name}); toast(r.ok ? "已发起切换,重启后自动登录 " + name : ("失败: " + r.error), !r.ok); setTimeout(refresh, 6000); }
+    async function doInstAdd(){ const r = await post("instance-add"); if (r.ok) { toast("已创建实例 " + (r.name || "") + ",启动中…"); setTimeout(refresh, 6000); } else toast("失败: " + (r.error || JSON.stringify(r).slice(0,100)), true); }
+    async function doInstStart(name){ const r = await post("instance-start", {name}); toast(r.ok ? "已启动 " + name : ("失败: " + r.error), !r.ok); setTimeout(refresh, 5000); }
+    async function doInstStop(name){ const r = await post("instance-stop", {name}); toast(r.ok ? "已停止 " + name : ("失败: " + r.error), !r.ok); setTimeout(refresh, 4000); }
+    async function doSetAuto(){ const uin = st && st.self && st.self.uin; if (!uin) return; const r = await post("set-auto", {uin}); toast(r.ok ? "已设自动登录 " + uin : ("失败: " + r.error), !r.ok); refresh(); }
     document.addEventListener("click", e => {
       const el = e.target.closest("[data-act]");
       if (!el) return;
       const act = el.getAttribute("data-act");
       const name = el.getAttribute("data-name") || "";
-      if (act === "switch") doSwitch(name);
+      if (act === "switch") needConfirm(el, "切换", () => doSwitch(name));
       else if (act === "inst-add") doInstAdd();
       else if (act === "inst-start") doInstStart(name);
-      else if (act === "inst-stop") doInstStop(name);
+      else if (act === "inst-stop") needConfirm(el, "停止", () => doInstStop(name));
     });
     refresh();
     setInterval(refresh, 4000);

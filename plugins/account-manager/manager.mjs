@@ -142,6 +142,19 @@ async function instanceStatus(inst) {
         st.login.qrcodeurl = d.qrcodeurl || '';
         st.login.uin = String(d.uin || (d.selfInfo && d.selfInfo.uin) || '');
       }
+      // 登录后补充账号资料(昵称/头像),用于页面账号绑定展示
+      if (st.login.isLogin) {
+        try {
+          const infoRaw = await webuiCall(inst, '/api/QQLogin/GetQQLoginInfo', {});
+          const info = (infoRaw && typeof infoRaw === 'object' && 'data' in infoRaw) ? infoRaw.data : infoRaw;
+          if (info) {
+            st.nick = String(info.nick || info.nickname || '');
+            st.avatarUrl = info.avatarUrl || info.avatar || '';
+            const iu = String(info.uin || info.uid || '');
+            if (iu) { st.uin = iu; st.login.uin = iu; }
+          }
+        } catch {}
+      }
     } catch (e) { st.login.phase = 'webui-error: ' + String((e && e.message) || e).slice(0, 80); }
   }
   return st;
