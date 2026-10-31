@@ -169,7 +169,10 @@ function pageJs() {
           html += '<div class="inst">';
           if (it.avatarUrl) html += '<img class="mini" src="' + esc(it.avatarUrl) + '">';
           html += '<div class="grow"><b>' + esc(it.nick || it.name) + '</b> <span class="tag">' + esc(it.uin || "未登录") + '</span> <span class="tag ' + (it.running ? "ok" : "") + '">' + (it.running ? "运行中" : "已停止") + '</span>';
-          html += '<br><span class="meta">' + esc(it.name) + ' · WebUI ' + esc(String(it.webuiPort || "-")) + ' · OneBot ' + esc(String(it.onebotPort || "-")) + '</span></div>';
+          html += '<br><span class="meta">' + esc(it.name) + ' · WebUI ' + esc(String(it.webuiPort || "-")) + ' · OneBot ' + esc(String(it.onebotPort || "-")) + '</span>';
+          if (it.running && it.login && !it.login.isLogin && it.login.qrcodeurl) html += '<div style="margin-top:8px"><img src="' + esc(it.login.qrcodeurl) + '" style="width:150px;border:6px solid #fff;border-radius:8px"><br><span class="meta">用要添加的 QQ 扫码登录,成功后自动绑定</span></div>';
+          else if (it.running && it.login && !it.login.isLogin) html += '<div style="margin-top:6px" class="meta">等待二维码… ' + esc(it.login.phase || "") + '</div>';
+          html += '</div>';
           if (it.running) html += '<button class="danger" data-act="inst-stop" data-name="' + esc(it.name) + '">停止</button>';
           else html += '<button data-act="inst-start" data-name="' + esc(it.name) + '">启动</button>';
           html += "</div>";
