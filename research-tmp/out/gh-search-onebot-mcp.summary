@@ -1,0 +1,16 @@
+total:58
+Derpyu520/qq-bridge | 3346* | Bridge between QQ (SnowLuma OneBot v11) and DeepSeek Harness agents: social simulation, safe MCP tools, slang  | 2026-10-31 | https://github.com/Derpyu520/qq-bridge
+pinganbbOvO/ai-companion-kit | 530* | 给你的 AI 一副身体，和一点人味 —— 会记事、会看场合的 QQ 陪聊 + 能控制安卓手机的 MCP | 2026-10-26 | https://github.com/pinganbbOvO/ai-companion-kit
+fumingyang2004/Tulpa | 498* | 使用MCP，让你几乎所有的Agent访问QQ/微信/B站，甚至亲自下场水群和发消息！ | 2026-10-24 | https://github.com/fumingyang2004/Tulpa
+sunerpy/pt-tools | 172* | PT 站点自动化管理：RSS 下载、刷流、IYUU 辅种、媒体库订阅与整理、签到与保号提醒、数据统计，统一管理 qBittorrent 和 Transmission；手机 App 远程查看和操作，也可以在 QQ、Tele | 2026-10-31 | https://github.com/sunerpy/pt-tools
+Cat-bl/bl-chat-plugin | 70* | 适用于Trss yunzai+oneBot v11的ai对话插件，支持本地工具调用，自定义本地工具，mcp服务配置等 | 2026-08-19 | https://github.com/Cat-bl/bl-chat-plugin
+ErisPulse/ErisPulse | 58* | Event-driven multi-platform bot framework with Dashboard, Docker, hot-reload & module marketplace | 事件驱动的多平台机器 | 2026-10-30 | https://github.com/ErisPulse/ErisPulse
+DreamDonghao/insoulforge | 56* | 基于 C++23 与 Agent 架构的 OneBot 智能聊天机器人，支持群聊智能回复、跨会话消息共享、长期记忆、好感度、自定义工具扩展、MCP 及 Web 管理后台 | 2026-10-30 | https://github.com/DreamDonghao/insoulforge
+Pretend-to/mio-chat-backend | 39* | 🤖 MioChat — 开源的 Agent 操作系统。Agent / Session / SubAgent 三级上下文模型、V3 Hook 切面、MCP + Skills 双标准工具生态、多渠道接入与定时自治。模型无关 | 2026-10-30 | https://github.com/Pretend-to/mio-chat-backend
+JFSAS/WispCat | 10* | 独立微信协议运行时，提供 OneBot v11、WebUI、Go SDK 与 MCP 接口。Alpha 开发预览。 | 2026-10-22 | https://github.com/JFSAS/WispCat
+Ling-ye/AgentStrata | 9* | A customizable agent runtime system for external applications, with LangGraph-based agents, application integr | 2026-10-31 | https://github.com/Ling-ye/AgentStrata
+NimuStudio/NimuQDock-dsh | 8* | 把 DeepSeek Harness接入QQ的对接坞——带人格引擎的仿真群友：心情、精力、记忆，像真人一样潜水与参与。 | 2026-10-29 | https://github.com/NimuStudio/NimuQDock-dsh
+RazureSOFT/0KAY | 6* | 0kay platform - architecture, compose & umbrella docs | 2026-10-25 | https://github.com/RazureSOFT/0KAY
+haoan33/OmniQQ-MCP | 5* | OmniQQ-MCP | NapCat OneBot 11 通用 QQ MCP 服务：74 项工具、Action 透传、账号隔离缓存、并发请求、只读取消、二维码登录与运行时部署。 | 2026-10-28 | https://github.com/haoan33/OmniQQ-MCP
+ptrel1/napcat_mcp | 4* | 把 NapCat / OneBot 11 API 暴露為 MCP 工具，供 RikkaHub、Claude Desktop、Cline 等客戶端使用。 | 2026-08-03 | https://github.com/ptrel1/napcat_mcp
+ErisPulse/ErisPulse-ModuleRepo | 4* | ErisPulse module marketplace source — publish & discover modules/adapters | ErisPulse 模块源仓库 — 发布与发现模块 / 适配器 | 2026-10-31 | https://github.com/ErisPulse/ErisPulse-ModuleRepo

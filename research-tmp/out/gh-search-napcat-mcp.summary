@@ -1,0 +1,16 @@
+total:31
+Cat-bl/bl-chat-plugin | 70* | 适用于Trss yunzai+oneBot v11的ai对话插件，支持本地工具调用，自定义本地工具，mcp服务配置等 | 2026-08-19 | https://github.com/Cat-bl/bl-chat-plugin
+NimuStudio/NimuQDock-dsh | 8* | 把 DeepSeek Harness接入QQ的对接坞——带人格引擎的仿真群友：心情、精力、记忆，像真人一样潜水与参与。 | 2026-10-29 | https://github.com/NimuStudio/NimuQDock-dsh
+haoan33/OmniQQ-MCP | 5* | OmniQQ-MCP | NapCat OneBot 11 通用 QQ MCP 服务：74 项工具、Action 透传、账号隔离缓存、并发请求、只读取消、二维码登录与运行时部署。 | 2026-10-28 | https://github.com/haoan33/OmniQQ-MCP
+ptrel1/napcat_mcp | 4* | 把 NapCat / OneBot 11 API 暴露為 MCP 工具，供 RikkaHub、Claude Desktop、Cline 等客戶端使用。 | 2026-08-03 | https://github.com/ptrel1/napcat_mcp
+chail233/Cith | 4* | 可自由适配场景的Agent/Personal Agent：多轮工具调用、记忆系统、MCP 工具扩展与可插拔技能系统。 | 2026-10-30 | https://github.com/chail233/Cith
+RhineLab-magellan/cherrystudio-qq-mcp | 3* | QQ MCP Bridge: CherryStudio + NapCat QQ bot bridge for multi-agent chat | 2026-06-22 | https://github.com/RhineLab-magellan/cherrystudio-qq-mcp
+mouse114514/Xadeus-QQ-MCP | 3* | QQ MCP Server - connect AI agents to QQ via NapCatQQ. Auto-wake, messaging, group management, file sharing, cr | 2026-08-22 | https://github.com/mouse114514/Xadeus-QQ-MCP
+oines/astral-im-bridge | 2* | QQ/NapCat OneBot v11 bridge for Astral Code with MCP tools | 2026-09-13 | https://github.com/oines/astral-im-bridge
+awaa4962-coder/qqbot-core | 2* | Linux-first modular QQ bot with chat, memory, vision, bounded autonomous tools, optional readonly MCP, and a C | 2026-10-17 | https://github.com/awaa4962-coder/qqbot-core
+DengSSHS/qq-ai-bot | 2* | 住在 QQ 群里的 AI 角色：被 @ 才说话，有长期记忆、会看图上网；也能自己去 B 站刷视频——觉得有意思就在评论区 @ 你。2 核 2G 入门服务器实测核心 607 MB、单轮回复 1~2 秒。7 个自建 MCP， | 2026-10-26 | https://github.com/DengSSHS/qq-ai-bot
+ID-VerNe/IdleJot | 2* | 让ai agent变成你的qq群友 | 2026-10-30 | https://github.com/ID-VerNe/IdleJot
+libsilverwolf/napcat-mcp | 1* | napcat（一款QQ第三方协议端，提供一系列QQ相关操作）的MCP和skill，方便Agent进行调用 | 2026-06-11 | https://github.com/libsilverwolf/napcat-mcp
+Frostbite-time/onebot-mcp | 1* | HTTP MCP server that wraps OneBot APIs for AI agents. | 2026-07-04 | https://github.com/Frostbite-time/onebot-mcp
+Miaoge-Ge/qq-llm-bot | 1* | A QQ bot built on NapCat (OneBot) with an OpenAI-compatible LLM, memory, RAG, and MCP tools. | 2026-05-26 | https://github.com/Miaoge-Ge/qq-llm-bot
+wangyufengsky/qq-agents | 1* | 自托管的多角色 QQ AI 管理台：每个角色绑定一个 QQ 号（NapCat/OneBot），可用 DSH、Codex 或任意 OpenAI 兼容 API，各自拥有人格、记忆和权限。 | 2026-10-31 | https://github.com/wangyufengsky/qq-agents

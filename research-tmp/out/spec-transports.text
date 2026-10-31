@@ -1,0 +1,182 @@
+Overview - Model Context Protocol
+Documentation Index
+Fetch the complete documentation index at:
+/llms.txt
+Use this file to discover all available pages before exploring further.
+Skip to main content
+Assistant
+Responses are generated using AI and may contain mistakes.
+Model Context Protocol
+ home page
+Version 2026-07-28 (latest)
+Search...
+⌘
+K
+Ask Assistant
+⌘
+I
+Blog
+GitHub
+Discord
+Search...
+Navigation
+Transports
+Overview
+Documentation
+Specification
+Extensions
+Registry
+SEPs
+Community
+Specification
+Key Changes
+Deprecated Features
+Architecture
+Base Protocol
+Overview
+Versioning and Compatibility
+Message Patterns
+Transports
+Overview
+stdio
+Streamable HTTP
+Authorization
+Client Features
+Roots
+Sampling
+Elicitation
+Server Features
+Overview
+Discovery
+Prompts
+Resources
+Tools
+Utilities
+Schema Reference
+On this page
+Back to top
+Messages
+Request Metadata
+Cancellation
+Custom Transports
+Backward Compatibility
+Transports
+Overview
+Copy page
+Copy page
+Copy page
+Copy page
+This page defines what a transport must provide to carry MCP messages, the
+standard transport bindings, and the requirements for defining new ones.
+Protocol semantics are identical on every transport. A transport is a
+binding
+: it defines how messages are framed and delivered, how request
+metadata is carried, and how cancellation and termination are signaled. It
+does not define what the messages mean: the
+message patterns
+ are part of the core
+protocol and are the same on every binding. The binding pages specify the
+standard transports:
+stdio
+: newline-delimited
+messages over the standard streams of a client-launched subprocess.
+Streamable HTTP
+:
+each message is an HTTP POST to a single MCP endpoint; replies arrive as
+a JSON object or a request-scoped SSE stream.
+It is also possible for clients and servers to implement
+custom transports
+.
+​
+Messages
+MCP uses JSON-RPC to encode messages. JSON-RPC messages 
+MUST
+ be UTF-8
+encoded.
+A binding 
+MUST
+ deliver client-sent 
+requests
+ and 
+notifications
+ to the
+server, and server-sent 
+responses
+ and 
+notifications
+ to the client. No
+other message direction exists: per the
+message patterns
+, servers do not
+initiate JSON-RPC requests and clients do not send JSON-RPC responses.
+​
+Request Metadata
+All protocol metadata travels in the message body: every request carries its
+protocol version and client capabilities in
+_meta.io.modelcontextprotocol/*
+fields.
+A binding 
+MAY
+ additionally mirror selected body fields into envelope
+metadata. The Streamable HTTP transport mirrors them into
+HTTP headers
+so that intermediaries can route and inspect requests without parsing the
+body. The body remains the source of truth; bindings that mirror metadata
+define how mismatches are rejected.
+​
+Cancellation
+Each binding defines how a client abandons an in-flight request: on stdio
+the client sends a 
+notifications/cancelled
+ notification; on Streamable
+HTTP it closes the request’s response stream. The protocol-level rules are
+the same everywhere; see
+Cancellation
+.
+​
+Custom Transports
+Clients and servers 
+MAY
+ implement additional custom transport mechanisms
+to suit their specific needs. The protocol is transport-agnostic and can be
+implemented over any communication channel that supports bidirectional
+message exchange.
+Implementers who choose to support custom transports 
+MUST
+ preserve the
+JSON-RPC message format, the
+message patterns
+, and the per-request
+metadata model. Custom transports 
+SHOULD
+ document their connection
+establishment, message framing, and cancellation patterns to aid
+interoperability.
+Custom transports that run over a reliable bidirectional byte stream (e.g.,
+Unix domain sockets or TCP) 
+SHOULD
+ reuse the
+stdio framing
+ rather than
+defining a new one: the stdio binding is just newline-delimited JSON-RPC
+over a byte stream, and only its process-lifecycle rules are specific to
+standard streams.
+​
+Backward Compatibility
+Earlier protocol revisions established a connection-scoped session with an
+initialize
+ handshake and allowed servers to initiate JSON-RPC requests.
+Clients and servers that interoperate with those revisions detect the
+counterpart’s era and fall back as described in
+Versioning: Backward Compatibility
+,
+which includes a compatibility matrix for implementors. Each binding page
+describes its transport-specific detection mechanics.
+Was this page helpful?
+Yes
+No
+Progress
+stdio
+github
+discord
+{"docsConfig":{"theme":"mint","$schema":"https://mintlify.com/docs.json","name":"Model Context Protocol","colors":{"primary":"#09090b","light":"#FAFAFA","dark":"#09090b"},"logo":{"light":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499","dark":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/dark.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=1227cb7feb8344f9f6288c6b5b0a6d80"},"favicon":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/favicon.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=e419be76252c1cb0a6924602b9de428f","navbar":{"links":[{"href":"https://blog.modelcontextprotocol.io","label":"Blog"},{"href":"https://github.com/modelcontextprotocol","label":"GitHub"},{"href":"https://discord.gg/6CSzBmMkjX","label":"Discord"}]},"footer":{"socials":{"github":"https://github.com/modelcontextprotocol","discord":"https://discord.gg/6CSzBmMkjX"}},"seo":{"metatags":{"og:image":"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png"},"indexing":"navigable"},"contextual":{"options":["copy","view"],"display":"header"},"styling":{"latex":false},"navigation":{"pages":[]}},"deployment":{"deploymentMetadataValue":{"subdomain":"mcp","hasAudioNarration":false,"actualSubdomain":"mcp","customDomains":["modelcontextprotocol.io","modelcontextprotocol.net","modelcontextprotocol.org"],"gitSource":{"type":"github","owner":"modelcontextprotocol","repo":"modelcontextprotocol","deployBranch":"main","contentDirectory":"docs","isPrivate":true,"mountPath":"","label":""},"chroma":{"liveDeploymentHistoryId":"6ae5a287f146f7c5c1de2206","collectionId":"0747fc7a-5cbf-48b3-9c5a-a6467bdc1cd5","schemaVersion":"v3","latestBuiltDeploymentHistoryId":"6ae5a287f146f7c5c1de2206"},"feedback":{"thumbs":true},"entitlements":{"AI_CHAT":{"status":"ENABLED"},"REMOVE_BRANDING":{"status":"ENABLED"},"CONTEXTUAL_FEEDBACK":{"status":"ENABLED"},"CODE_SNIPPET_FEEDBACK":{"status":"ENABLED"},"WEB_MCP":{"status":"ENABLED"},"NARRATION":{"status":"ENABLED"}},"buildId":"6ae5a287f146f7c5c1de2206","clientVersion":"0.0.4043","searchFilterCounts":[{"language":"default","tag":"Specification","count":142},{"language":"default","tag":"Documentation","count":117},{"language":"default","tag":"Base Protocol","count":57},{"language":"default","tag":"Develop with MCP","count":56},{"language":"default","tag":"SEPs","count":46},{"language":"default","tag":"Server Features","count":46},{"language":"default","tag":"Final","count":44},{"language":"default","tag":"Community","count":34},{"language":"default","tag":"Utilities","count":33},{"language":"default","tag":"Developer tools","count":30}]},"assistantConfig":{},"basePath":"","hasChatPermissions":true,"hasWebMcpPermissions":true,"toggles":[{"name":"kill-isr","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-mintlify-slack","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-integrations-settings","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-pr-grouping","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"custom-prefix","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"analytics-v7","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"user-flows-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"no-publish-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-onboarding","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"llms-txt-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving-live","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"stripTemperatureMiddleware","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"support-platform-pylon-zendesk","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"instant-rollback","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications-server","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-fable","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fixed-ai-action-pricing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automation-resolve-merge-conflict","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"scoped-publishing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"mintql","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"page-level-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"editor-version-history-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-page-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"full-page-search","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workspace-projects","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"assistant-v5","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"byok-sep-25","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fork-pr-previews","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"revalidation-jwt","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"vite-origin","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-updated-9-15","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-sso-scim","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"hobby-abuse-scan","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"dashboard-inbox","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-signup","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"turbopuffer-dual-write","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-enabled","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"approve-review-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"sso-setup-deadline-banner","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false}],"googleFontsInlined":false},"customCss":[{"filePath":"style.css","content":"#content-area{--font-mono:var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace}#enable-section-numbers,#schema-reference{display:none}body:has(#schema-reference){--mt-md:0.5rem;--mt-lg:1rem;--mt-xl:1.5rem}#footer{flex-wrap:wrap;row-gap:1.5rem}#lf-copyright{flex:1 1 32rem;min-width:0;text-align:center;font-size:.875rem;color:rgb(var(--gray-500));line-height:1.5}"}],"page":{"pagePath":"specification/2026-07-28/basic/transports","slug":"/specification/2026-07-28/basic/transports","pageMetadata":{"title":"Overview","description":null,"href":"/specification/2026-07-28/basic/transports/index"},"pageType":"default","mdx":{"mdxSource":{"compiledSource":"\"use strict\";const{Fragment:_Fragment,jsx:_jsx,jsxs:_jsxs}=arguments[0];const{useMDXComponents:_provideComponents}=arguments[0];function _createMdxContent(props){const _components={a:`a`,code:`code`,em:`em`,li:`li`,ol:`ol`,p:`p`,strong:`strong`,..._provideComponents(),...props.components},{Heading}=_components;if(!Heading)_missingMdxReference(`Heading`,true);return _jsxs(_Fragment,{children:[_jsx(`div`,{id:`enable-section-numbers`}),`\n`,_jsx(_components.p,{children:`This page defines what a transport must provide to carry MCP messages, the\nstandard transport bindings, and the requirements for defining new ones.`}),`\n`,_jsxs(_components.p,{children:[`Protocol semantics are identical on every transport. A transport is a\n`,_jsx(_components.strong,{children:`binding`}),`: it defines how messages are framed and delivered, how request\nmetadata is carried, and how cancellation and termination are signaled. It\ndoes not define what the messages mean: the\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns`,children:`message patterns`}),` are part of the core\nprotocol and are the same on every binding. The binding pages specify the\nstandard transports:`]}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.a,{href:`/specification/2026-07-28/basic/transports/stdio`,children:`stdio`}),`: newline-delimited\nmessages over the standard streams of a client-launched subprocess.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.a,{href:`/specification/2026-07-28/basic/transports/streamable-http`,children:`Streamable HTTP`}),`:\neach message is an HTTP POST to a single MCP endpoint; replies arrive as\na JSON object or a request-scoped SSE stream.`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`It is also possible for clients and servers to implement\n`,_jsx(_components.a,{href:`#custom-transports`,children:`custom transports`}),`.`]}),`\n`,_jsx(Heading,{level:`2`,id:`messages`,children:`Messages`}),`\n`,_jsxs(_components.p,{children:[`MCP uses JSON-RPC to encode messages. JSON-RPC messages `,_jsx(_components.strong,{children:`MUST`}),` be UTF-8\nencoded.`]}),`\n`,_jsxs(_components.p,{children:[`A binding `,_jsx(_components.strong,{children:`MUST`}),` deliver client-sent `,_jsx(_components.em,{children:`requests`}),` and `,_jsx(_components.em,{children:`notifications`}),` to the\nserver, and server-sent `,_jsx(_components.em,{children:`responses`}),` and `,_jsx(_components.em,{children:`notifications`}),` to the client. No\nother message direction exists: per the\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns`,children:`message patterns`}),`, servers do not\ninitiate JSON-RPC requests and clients do not send JSON-RPC responses.`]}),`\n`,_jsx(Heading,{level:`2`,id:`request-metadata`,children:`Request Metadata`}),`\n`,_jsxs(_components.p,{children:[`All protocol metadata travels in the message body: every request carries its\nprotocol version and client capabilities in\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/index#meta`,children:_jsx(_components.code,{children:`_meta.io.modelcontextprotocol/*`})}),`\nfields.`]}),`\n`,_jsxs(_components.p,{children:[`A binding `,_jsx(_components.strong,{children:`MAY`}),` additionally mirror selected body fields into envelope\nmetadata. The Streamable HTTP transport mirrors them into\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/transports/streamable-http#request-metadata`,children:`HTTP headers`}),`\nso that intermediaries can route and inspect requests without parsing the\nbody. The body remains the source of truth; bindings that mirror metadata\ndefine how mismatches are rejected.`]}),`\n`,_jsx(Heading,{level:`2`,id:`cancellation`,children:`Cancellation`}),`\n`,_jsxs(_components.p,{children:[`Each binding defines how a client abandons an in-flight request: on stdio\nthe client sends a `,_jsx(_components.code,{children:`notifications/cancelled`}),` notification; on Streamable\nHTTP it closes the request’s response stream. The protocol-level rules are\nthe same everywhere; see\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns/cancellation`,children:`Cancellation`}),`.`]}),`\n`,_jsx(Heading,{level:`2`,id:`custom-transports`,children:`Custom Transports`}),`\n`,_jsxs(_components.p,{children:[`Clients and servers `,_jsx(_components.strong,{children:`MAY`}),` implement additional custom transport mechanisms\nto suit their specific needs. The protocol is transport-agnostic and can be\nimplemented over any communication channel that supports bidirectional\nmessage exchange.`]}),`\n`,_jsxs(_components.p,{children:[`Implementers who choose to support custom transports `,_jsx(_components.strong,{children:`MUST`}),` preserve the\nJSON-RPC message format, the\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns`,children:`message patterns`}),`, and the per-request\nmetadata model. Custom transports `,_jsx(_components.strong,{children:`SHOULD`}),` document their connection\nestablishment, message framing, and cancellation patterns to aid\ninteroperability.`]}),`\n`,_jsxs(_components.p,{children:[`Custom transports that run over a reliable bidirectional byte stream (e.g.,\nUnix domain sockets or TCP) `,_jsx(_components.strong,{children:`SHOULD`}),` reuse the\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/transports/stdio`,children:`stdio framing`}),` rather than\ndefining a new one: the stdio binding is just newline-delimited JSON-RPC\nover a byte stream, and only its process-lifecycle rules are specific to\nstandard streams.`]}),`\n`,_jsx(Heading,{level:`2`,id:`backward-compatibility`,children:`Backward Compatibility`}),`\n`,_jsxs(_components.p,{children:[`Earlier protocol revisions established a connection-scoped session with an\n`,_jsx(_components.code,{children:`initialize`}),` handshake and allowed servers to initiate JSON-RPC requests.\nClients and servers that interoperate with those revisions detect the\ncounterpart’s era and fall back as described in\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/versioning#backward-compatibility-with-initialization-based-versions`,children:`Versioning: Backward Compatibility`}),`,\nwhich includes a compatibility matrix for implementors. Each binding page\ndescribes its transport-specific detection mechanics.`]})]})}function MDXContent(props={}){const{wrapper:MDXLayout}={..._provideComponents(),...props.components};return MDXLayout?_jsx(MDXLayout,{...props,children:_jsx(_createMdxContent,{...props})}):_createMdxContent(props)}return{default:MDXContent};function _missingMdxReference(id,component){throw new Error(`Expected `+(component?`component`:`object`)+\" `\"+id+\"` to be defined: you likely forgot to import, pass, or provide it.\")}","frontmatter":{},"scope":{"config":{},"pageMetadata":{"title":"Overview","description":null,"href":"/specification/2026-07-28/basic/transports/index"}}},"mdxSourceWithNoJs":null},"mdxExtracts":{"tableOfContents":[{"title":"Messages","slug":"messages","depth":2,"children":[]},{"title":"Request Metadata","slug":"request-metadata","depth":2,"children":[]},{"title":"Cancellation","slug":"cancellation","depth":2,"children":[]},{"title":"Custom Transports","slug":"custom-transports","depth":2,"children":[]},{"title":"Backward Compatibility","slug":"backward-compatibility","depth":2,"children":[]}],"codeExamples":{}},"jsLinks":["/_mintlify/custom/mcp/e091f6927e8ff316/footer.js","/_mintlify/custom/mcp/539ab9218716af9b/version-warning.js"],"subdomain":"mcp","siteName":"Model Context Protocol","title":"Overview - Model Context Protocol","navMaps":{"firstHrefInVersion":{"Version 2026-07-28 (latest)":{"href":"/specification/2026-07-28/basic/transports/index","matchLevel":2},"Version 2025-11-25":{"href":"/specification/2025-11-25/basic/transports","matchLevel":1},"Version 2025-06-18":{"href":"/specification/2025-06-18/basic/transports","matchLevel":1},"Version 2025-03-26":{"href":"/specification/2025-03-26/basic/transports","matchLevel":1},"Version 2024-11-05":{"href":"/specification/2024-11-05/basic/transports","matchLevel":1},"Draft":{"href":"/specification/draft","matchLevel":3}},"firstHrefInLanguage":{}},"lastModified":"2026-10-30T18:11:50.345Z","originalFileLocation":"specification/2026-07-28/basic/transports/index.mdx"},"headHtml":"\u003cscript data-mint-head>(function(){var d=document.documentElement,p=null;if(!p){try{p=localStorage.getItem(\"isDarkMode\")}catch(e){}if(p==='true')p='dark';else if(p==='false')p='light';if(p!=='light'\u0026\u0026p!=='dark'\u0026\u0026p!=='system')p=\"system\"}var r=p==='system'?(matchMedia(\"(prefers-color-scheme: dark)\").matches?'dark':'light'):p;d.classList.remove(r==='dark'?'light':'dark');d.classList.add(r);d.setAttribute(\"data-theme-preference\",p)})();\u003c/script>\u003cmeta data-mint-head name=\"application-name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"generator\" content=\"Mintlify\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/android-chrome-192x192.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"apple-touch-icon\" type=\"image/png\" sizes=\"180x180\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/apple-touch-icon.png\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-16x16.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-32x32.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon.ico\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/android-chrome-192x192.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-16x16.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-32x32.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon.ico\" media=\"(prefers-color-scheme: dark)\">\u003cmeta data-mint-head property=\"og:title\" content=\"Overview - Model Context Protocol\">\u003cmeta data-mint-head property=\"og:site_name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head property=\"og:url\" content=\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports\">\u003cmeta data-mint-head property=\"og:type\" content=\"website\">\u003cmeta data-mint-head property=\"og:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head property=\"og:image:width\" content=\"1200\">\u003cmeta data-mint-head property=\"og:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"twitter:card\" content=\"summary_large_image\">\u003cmeta data-mint-head name=\"twitter:title\" content=\"Overview - Model Context Protocol\">\u003cmeta data-mint-head name=\"twitter:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head name=\"twitter:image:width\" content=\"1200\">\u003cmeta data-mint-head name=\"twitter:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"msapplication-config\" content=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/browserconfig.xml\">\u003cmeta data-mint-head name=\"apple-mobile-web-app-title\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"msapplication-TileColor\" content=\"#09090b\">\u003clink data-mint-head rel=\"canonical\" href=\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports\">\u003clink data-mint-head rel=\"alternate\" type=\"application/xml\" href=\"/sitemap.xml\">\u003clink data-mint-head rel=\"alternate\" type=\"text/markdown\" href=\"/specification/2026-07-28/basic/transports.md\">\u003cscript data-mint-head type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"@id\":\"https://modelcontextprotocol.io/#organization\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"logo\":{\"@type\":\"ImageObject\",\"url\":\"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499\"}},{\"@type\":\"WebSite\",\"@id\":\"https://modelcontextprotocol.io#website\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"}},{\"@type\":\"WebPage\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#webpage\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports\",\"name\":\"Overview\",\"dateModified\":\"2026-10-30T18:11:50.345Z\",\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"},\"breadcrumb\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#breadcrumb\"}},{\"@type\":\"BreadcrumbList\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#breadcrumb\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Base Protocol\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/index\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Transports\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/index\"},{\"@type\":\"ListItem\",\"position\":3,\"name\":\"Overview\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports\"}]},{\"@type\":[\"Article\",\"TechArticle\"],\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#article\",\"headline\":\"Overview\",\"name\":\"Overview\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports\",\"mainEntityOfPage\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#webpage\"},\"image\":\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\",\"dateModified\":\"2026-10-30T18:11:50.345Z\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"},\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}}]}\u003c/script>","siteName":"Model Context Protocol","nav":{"global":null,"tabs":[{"tab":"Documentation","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"group":"Get started","pages":[{"title":"What is the Model Context Protocol (MCP)?","sidebarTitle":"What is MCP?","href":"/docs/2026-07-28/getting-started/intro"}]},{"group":"About MCP","pages":[{"title":"Architecture overview","sidebarTitle":"Architecture","href":"/docs/2026-07-28/learn/architecture"},{"title":"Understanding MCP servers","sidebarTitle":"Servers","href":"/docs/2026-07-28/learn/server-concepts"},{"title":"Understanding MCP clients","sidebarTitle":"Clients","href":"/docs/2026-07-28/learn/client-concepts"},{"title":"Versioning","href":"/docs/2026-07-28/learn/versioning"}]},{"group":"Develop with MCP","pages":[{"title":"Connect to local MCP servers","href":"/docs/2026-07-28/develop/connect-local-servers"},{"title":"Connect to remote MCP Servers","href":"/docs/2026-07-28/develop/connect-remote-servers"},{"title":"Build with Agent Skills","href":"/docs/2026-07-28/develop/build-with-agent-skills"},{"title":"Build an MCP server","href":"/docs/2026-07-28/develop/build-server"},{"group":"Clients","pages":[{"title":"Build an MCP client","href":"/docs/2026-07-28/develop/build-client"},{"title":"Client Best Practices","href":"/docs/2026-07-28/develop/clients/client-best-practices"}]},{"title":"SDKs","href":"/docs/2026-07-28/sdk"},{"group":"Security","pages":[{"title":"Understanding Authorization in MCP","href":"/docs/2026-07-28/tutorials/security/authorization"},{"title":"Security Best Practices","href":"/docs/2026-07-28/tutorials/security/security_best_practices"},{"title":"Local Server Security","href":"/docs/2026-07-28/tutorials/security/local-server-security"}]}]},{"group":"Developer tools","pages":[{"group":"Inspector","pages":[{"title":"MCP Inspector","href":"/docs/2026-07-28/tools/inspector"},{"title":"Web client","href":"/docs/2026-07-28/tools/inspector/web"},{"title":"CLI client","href":"/docs/2026-07-28/tools/inspector/cli"},{"title":"TUI client","href":"/docs/2026-07-28/tools/inspector/tui"},{"title":"mcpdo connection client","href":"/docs/2026-07-28/tools/inspector/mcpdo"},{"title":"Configuration and flags","href":"/docs/2026-07-28/tools/inspector/configuration"},{"title":"Authorization","href":"/docs/2026-07-28/tools/inspector/authorization"},{"title":"Protocol eras","href":"/docs/2026-07-28/tools/inspector/protocol-eras"},{"title":"Recipes","href":"/docs/2026-07-28/tools/inspector/recipes"},{"title":"Security","href":"/docs/2026-07-28/tools/inspector/security"}]},{"title":"Debugging","href":"/docs/2026-07-28/tools/debugging"}]},{"group":"Examples","pages":[{"title":"Example Servers","href":"/examples"}]}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/docs/2025-11-25/getting-started/intro"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/docs/2025-06-18/getting-started/intro"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/docs/2025-03-26/getting-started/intro"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/docs/2024-11-05/getting-started/intro"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/docs/draft/getting-started/intro"}]}]},{"tab":"Specification","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"title":"Specification","href":"/specification/2026-07-28"},{"title":"Key Changes","href":"/specification/2026-07-28/changelog"},{"title":"Deprecated Features","href":"/specification/2026-07-28/deprecated"},{"title":"Architecture","href":"/specification/2026-07-28/architecture/index"},{"group":"Base Protocol","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/index"},{"title":"Versioning and Compatibility","href":"/specification/2026-07-28/basic/versioning"},{"group":"Message Patterns","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/patterns/index"},{"title":"Multi Round-Trip Requests","href":"/specification/2026-07-28/basic/patterns/mrtr"},{"title":"Subscriptions","href":"/specification/2026-07-28/basic/patterns/subscriptions"},{"title":"Cancellation","href":"/specification/2026-07-28/basic/patterns/cancellation"},{"title":"Progress","description":null,"href":"/specification/2026-07-28/basic/patterns/progress"}]},{"group":"Transports","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/transports/index"},{"title":"stdio","description":null,"href":"/specification/2026-07-28/basic/transports/stdio"},{"title":"Streamable HTTP","href":"/specification/2026-07-28/basic/transports/streamable-http"}]},{"group":"Authorization","pages":[{"title":"Authorization","sidebarTitle":"Overview","href":"/specification/2026-07-28/basic/authorization/index"},{"title":"Authorization Server Discovery","href":"/specification/2026-07-28/basic/authorization/authorization-server-discovery"},{"title":"Client Registration","href":"/specification/2026-07-28/basic/authorization/client-registration"},{"title":"Authorization Security Considerations","sidebarTitle":"Security Considerations","href":"/specification/2026-07-28/basic/authorization/security-considerations"}]}]},{"group":"Client Features","pages":[{"title":"Roots","href":"/specification/2026-07-28/client/roots"},{"title":"Sampling","href":"/specification/2026-07-28/client/sampling"},{"title":"Elicitation","href":"/specification/2026-07-28/client/elicitation"}]},{"group":"Server Features","pages":[{"title":"Overview","href":"/specification/2026-07-28/server/index"},{"title":"Discovery","href":"/specification/2026-07-28/server/discover"},{"title":"Prompts","href":"/specification/2026-07-28/server/prompts"},{"title":"Resources","href":"/specification/2026-07-28/server/resources"},{"title":"Tools","href":"/specification/2026-07-28/server/tools"},{"group":"Utilities","pages":[{"title":"Caching","href":"/specification/2026-07-28/server/utilities/caching"},{"title":"Completion","href":"/specification/2026-07-28/server/utilities/completion"},{"title":"Logging","href":"/specification/2026-07-28/server/utilities/logging"},{"title":"Pagination","href":"/specification/2026-07-28/server/utilities/pagination"}]}]},{"title":"Schema Reference","href":"/specification/2026-07-28/schema"}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/specification/2025-11-25/basic/transports"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/specification/2025-06-18/basic/transports"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/specification/2025-03-26/basic/transports"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/specification/2024-11-05/basic/transports"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/specification/draft"}]}]},{"tab":"Extensions","pages":[{"title":"Extensions","href":"/extensions/overview"}]},{"tab":"Registry","pages":[{"title":"Registry","href":"/registry/about"}]},{"tab":"SEPs","pages":[{"title":"SEPs","href":"/seps"}]},{"tab":"Community","pages":[{"title":"Community","href":"/community/contributing"}]}]},"basePath":"","title":"Overview - Model Context Protocol","buildId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","deploymentId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","dynamics":[],"chunks":[]}

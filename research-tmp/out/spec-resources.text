@@ -1,0 +1,775 @@
+Resources - Model Context Protocol
+Documentation Index
+Fetch the complete documentation index at:
+/llms.txt
+Use this file to discover all available pages before exploring further.
+Skip to main content
+Assistant
+Responses are generated using AI and may contain mistakes.
+Model Context Protocol
+ home page
+Version 2026-07-28 (latest)
+Search...
+⌘
+K
+Ask Assistant
+⌘
+I
+Blog
+GitHub
+Discord
+Search...
+Navigation
+Server Features
+Resources
+Documentation
+Specification
+Extensions
+Registry
+SEPs
+Community
+Specification
+Key Changes
+Deprecated Features
+Architecture
+Base Protocol
+Overview
+Versioning and Compatibility
+Message Patterns
+Transports
+Authorization
+Client Features
+Roots
+Sampling
+Elicitation
+Server Features
+Overview
+Discovery
+Prompts
+Resources
+Tools
+Utilities
+Schema Reference
+On this page
+Back to top
+User Interaction Model
+Capabilities
+Protocol Messages
+Listing Resources
+Reading Resources
+Resource Templates
+List Changed Notification
+Subscriptions
+Message Flow
+Data Types
+Resource
+Resource Contents
+Text Content
+Binary Content
+Annotations
+Common URI Schemes
+https://
+file://
+git://
+Custom URI Schemes
+Error Handling
+Security Considerations
+Server Features
+Resources
+Copy page
+Copy page
+Copy page
+Copy page
+The Model Context Protocol (MCP) provides a standardized way for servers to expose
+resources to clients. Resources allow servers to share data that provides context to
+language models, such as files, database schemas, or application-specific information.
+Each resource is uniquely identified by a
+URI
+.
+For brevity, the request examples on this page omit the 
+_meta
+ request
+metadata (
+io.modelcontextprotocol/protocolVersion
+,
+io.modelcontextprotocol/clientInfo
+, and
+io.modelcontextprotocol/clientCapabilities
+). Every request 
+MUST
+ include
+the required 
+_meta
+ fields; see
+_meta
+.
+​
+User Interaction Model
+Resources in MCP are designed to be 
+application-driven
+, with host applications
+determining how to incorporate context based on their needs.
+For example, applications could:
+Expose resources through UI elements for explicit selection, in a tree or list view
+Allow the user to search through and filter available resources
+Implement automatic context inclusion, based on heuristics or the AI model’s selection
+However, implementations are free to expose resources through any interface pattern that
+suits their needs—the protocol itself does not mandate any specific user
+interaction model.
+​
+Capabilities
+Servers that support resources 
+MUST
+ declare the 
+resources
+ capability:
+{
+ "capabilities"
+: {
+ "resources"
+: {
+ "listChanged"
+: 
+true
+,
+ "subscribe"
+: 
+true
+ }
+ }
+}
+The capability supports two optional features:
+listChanged
+: whether the server will emit notifications when the list of available
+resources changes.
+subscribe
+ : whether the server supports resource-specific update notifications
+for resources requested through subscriptions/listen using the resourceSubscriptions
+filter.
+Servers may advertise either feature independently, together or neither.
+Servers that support neither 
+listChanged
+ nor 
+subscribe
+ may omit it:
+{
+ "capabilities"
+: {
+ "resources"
+: {}
+ }
+}
+Servers that declare the 
+resources
+ capability 
+MUST
+ respond to 
+resources/list
+requests with the set of resources currently available to the requesting client. This set
+MAY
+ be empty and 
+MAY
+ change over time (see
+List Changed Notification
+), but 
+MUST NOT
+ vary
+per-connection or as a side effect of other requests on the connection. The set
+MAY
+ vary by the authorization presented on the request — for example, returning
+only the resources the caller’s granted scopes permit — since credentials are
+per-request input, not connection state.
+​
+Protocol Messages
+​
+Listing Resources
+To discover available resources, clients send a 
+resources/list
+ request. This operation
+supports 
+pagination
+ and 
+caching
+.
+Request:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+1
+,
+ "method"
+: 
+"resources/list"
+,
+ "params"
+: {
+ "cursor"
+: 
+"optional-cursor-value"
+ }
+}
+Response:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+1
+,
+ "result"
+: {
+ "resultType"
+: 
+"complete"
+,
+ "resources"
+: [
+ {
+ "uri"
+: 
+"file:///project/src/main.rs"
+,
+ "name"
+: 
+"main.rs"
+,
+ "title"
+: 
+"Rust Software Application Main File"
+,
+ "description"
+: 
+"Primary application entry point"
+,
+ "mimeType"
+: 
+"text/x-rust"
+,
+ "icons"
+: [
+ {
+ "src"
+: 
+"https://example.com/rust-file-icon.png"
+,
+ "mimeType"
+: 
+"image/png"
+,
+ "sizes"
+: [
+"48x48"
+]
+ }
+ ]
+ }
+ ],
+ "nextCursor"
+: 
+"next-page-cursor"
+,
+ "ttlMs"
+: 
+300000
+,
+ "cacheScope"
+: 
+"public"
+ }
+}
+​
+Reading Resources
+To retrieve resource contents, clients send a 
+resources/read
+ request. This operation
+supports 
+caching
+.
+Request:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+2
+,
+ "method"
+: 
+"resources/read"
+,
+ "params"
+: {
+ "uri"
+: 
+"file:///project/src/main.rs"
+ }
+}
+Response:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+2
+,
+ "result"
+: {
+ "resultType"
+: 
+"complete"
+,
+ "contents"
+: [
+ {
+ "uri"
+: 
+"file:///project/src/main.rs"
+,
+ "mimeType"
+: 
+"text/x-rust"
+,
+ "text"
+: 
+"fn main() {
+\n
+ println!(
+\"
+Hello world!
+\"
+);
+\n
+}"
+ }
+ ],
+ "ttlMs"
+: 
+60000
+,
+ "cacheScope"
+: 
+"private"
+ }
+}
+Servers 
+MAY
+ return multiple resource contents in response to a single
+resources/read
+ request. For example, a server could return the contents of
+several files when a directory resource is read.
+Servers 
+MAY
+ also respond to 
+resources/read
+ with an 
+InputRequiredResult
+ to indicate that additional input is needed before the resource can be read. This follows the 
+multi round-trip requests
+ mechanism. When retrying the request, clients include 
+inputResponses
+ and, if provided by the server, 
+requestState
+ in the request parameters.
+Alternatively, if the scheme of 
+uri
+ is 
+https://
+, clients may fetch the resource directly from the web. See the 
+Common URI Schemes section
+ for more information.
+​
+Resource Templates
+Resource templates allow servers to expose parameterized resources using
+URI templates
+. Arguments may be
+auto-completed through 
+the completion API
+.
+This operation supports 
+pagination
+ and 
+caching
+.
+Request:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+3
+,
+ "method"
+: 
+"resources/templates/list"
+,
+ "params"
+: {
+ "cursor"
+: 
+"optional-cursor-value"
+ }
+}
+Response:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+3
+,
+ "result"
+: {
+ "resultType"
+: 
+"complete"
+,
+ "resourceTemplates"
+: [
+ {
+ "uriTemplate"
+: 
+"file:///{path}"
+,
+ "name"
+: 
+"Project Files"
+,
+ "title"
+: 
+"📁 Project Files"
+,
+ "description"
+: 
+"Access files in the project directory"
+,
+ "mimeType"
+: 
+"application/octet-stream"
+,
+ "icons"
+: [
+ {
+ "src"
+: 
+"https://example.com/folder-icon.png"
+,
+ "mimeType"
+: 
+"image/png"
+,
+ "sizes"
+: [
+"48x48"
+]
+ }
+ ]
+ }
+ ],
+ "nextCursor"
+: 
+"next-page-cursor"
+,
+ "ttlMs"
+: 
+300000
+,
+ "cacheScope"
+: 
+"public"
+ }
+}
+​
+List Changed Notification
+When the list of available resources changes, servers that declared the 
+listChanged
+capability 
+SHOULD
+ send a notification:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "method"
+: 
+"notifications/resources/list_changed"
+}
+​
+Subscriptions
+Clients subscribe to change notifications for specific resources by sending a
+subscriptions/listen
+ request with the resource URIs listed in
+notifications.resourceSubscriptions
+. The server delivers
+notifications/resources/updated
+ on the resulting stream whenever a watched resource
+changes.
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "method"
+: 
+"notifications/resources/updated"
+,
+ "params"
+: {
+ "_meta"
+: { 
+"io.modelcontextprotocol/subscriptionId"
+: 
+4
+ },
+ "uri"
+: 
+"file:///project/src/main.rs"
+ }
+}
+See 
+Subscriptions
+ for the full protocol mechanics (acknowledgment,
+subscriptionId
+ correlation, and cancellation).
+​
+Message Flow
+​
+Data Types
+​
+Resource
+A resource definition includes:
+uri
+: Unique identifier for the resource
+name
+: The name of the resource.
+title
+: Optional human-readable name of the resource for display purposes.
+description
+: Optional description
+icons
+: Optional array of icons for display in user interfaces
+mimeType
+: Optional MIME type
+size
+: Optional size in bytes
+​
+Resource Contents
+Resources can contain either text or binary data:
+​
+Text Content
+{
+ "uri"
+: 
+"file:///example.txt"
+,
+ "mimeType"
+: 
+"text/plain"
+,
+ "text"
+: 
+"Resource content"
+}
+​
+Binary Content
+{
+ "uri"
+: 
+"file:///example.png"
+,
+ "mimeType"
+: 
+"image/png"
+,
+ "blob"
+: 
+"base64-encoded-data"
+}
+​
+Annotations
+Resources, resource templates and content blocks support optional annotations that provide hints to clients about how to use or display the resource:
+audience
+: An array indicating the intended audience(s) for this resource. Valid values are 
+"user"
+ and 
+"assistant"
+. For example, 
+["user", "assistant"]
+ indicates content useful for both.
+priority
+: A number from 0.0 to 1.0 indicating the importance of this resource. A value of 1 means “most important” (effectively required), while 0 means “least important” (entirely optional).
+lastModified
+: An ISO 8601 formatted timestamp indicating when the resource was last modified (e.g., 
+"2025-01-12T15:00:58Z"
+).
+Example resource with annotations:
+{
+ "uri"
+: 
+"file:///project/README.md"
+,
+ "name"
+: 
+"README.md"
+,
+ "title"
+: 
+"Project Documentation"
+,
+ "mimeType"
+: 
+"text/markdown"
+,
+ "annotations"
+: {
+ "audience"
+: [
+"user"
+],
+ "priority"
+: 
+0.8
+,
+ "lastModified"
+: 
+"2025-01-12T15:00:58Z"
+ }
+}
+Clients can use these annotations to:
+Filter resources based on their intended audience
+Prioritize which resources to include in context
+Display modification times or sort by recency
+​
+Common URI Schemes
+The protocol defines several standard URI schemes. This list is not
+exhaustive—implementations are always free to use additional, custom URI schemes.
+​
+https://
+Used to represent a resource available on the web.
+Servers 
+SHOULD
+ use this scheme only when the client is able to fetch and load the
+resource directly from the web on its own—that is, it doesn’t need to read the resource
+via the MCP server.
+For other use cases, servers 
+SHOULD
+ prefer to use another URI scheme, or define a
+custom one, even if the server will itself be downloading resource contents over the
+internet.
+​
+file://
+Used to identify resources that behave like a filesystem. However, the resources do not
+need to map to an actual physical filesystem.
+MCP servers 
+MAY
+ identify file:// resources with an
+XDG MIME type
+,
+like 
+inode/directory
+, to represent non-regular files (such as directories) that don’t
+otherwise have a standard MIME type.
+​
+git://
+Git version control integration.
+​
+Custom URI Schemes
+Custom URI schemes 
+MUST
+ be in accordance with 
+RFC3986
+,
+taking the above guidance in to account.
+​
+Error Handling
+If the requested resource does not exist, servers 
+MUST
+ return a JSON-RPC error with
+code 
+-32602
+ (Invalid Params). Servers 
+SHOULD
+ return 
+-32603
+ for internal errors.
+For backwards compatibility, clients 
+SHOULD
+ also accept 
+-32002
+ as a
+resource not found error, as earlier protocol versions used this code.
+Servers 
+MUST NOT
+ return an empty 
+contents
+ array for a non-existent resource. An empty array is ambiguous—it could mean the resource exists but has no content, or that it doesn’t exist at all.
+Example error:
+{
+ "jsonrpc"
+: 
+"2.0"
+,
+ "id"
+: 
+5
+,
+ "error"
+: {
+ "code"
+: 
+-32602
+,
+ "message"
+: 
+"Resource not found"
+,
+ "data"
+: {
+ "uri"
+: 
+"file:///nonexistent.txt"
+ }
+ }
+}
+​
+Security Considerations
+Servers 
+MUST
+ validate all resource URIs
+Access controls 
+SHOULD
+ be implemented for sensitive resources
+Binary data 
+MUST
+ be properly encoded
+Resource permissions 
+SHOULD
+ be checked before operations
+Servers 
+MUST
+ sanitize file paths to prevent directory traversal attacks
+when serving 
+file://
+ resources
+Was this page helpful?
+Yes
+No
+Prompts
+Tools
+github
+discord
+{"docsConfig":{"theme":"mint","$schema":"https://mintlify.com/docs.json","name":"Model Context Protocol","colors":{"primary":"#09090b","light":"#FAFAFA","dark":"#09090b"},"logo":{"light":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499","dark":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/dark.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=1227cb7feb8344f9f6288c6b5b0a6d80"},"favicon":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/favicon.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=e419be76252c1cb0a6924602b9de428f","navbar":{"links":[{"href":"https://blog.modelcontextprotocol.io","label":"Blog"},{"href":"https://github.com/modelcontextprotocol","label":"GitHub"},{"href":"https://discord.gg/6CSzBmMkjX","label":"Discord"}]},"footer":{"socials":{"github":"https://github.com/modelcontextprotocol","discord":"https://discord.gg/6CSzBmMkjX"}},"seo":{"metatags":{"og:image":"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png"},"indexing":"navigable"},"contextual":{"options":["copy","view"],"display":"header"},"styling":{"latex":false},"navigation":{"pages":[]}},"deployment":{"deploymentMetadataValue":{"subdomain":"mcp","hasAudioNarration":false,"actualSubdomain":"mcp","customDomains":["modelcontextprotocol.io","modelcontextprotocol.net","modelcontextprotocol.org"],"gitSource":{"type":"github","owner":"modelcontextprotocol","repo":"modelcontextprotocol","deployBranch":"main","contentDirectory":"docs","isPrivate":true,"mountPath":"","label":""},"chroma":{"liveDeploymentHistoryId":"6ae5a287f146f7c5c1de2206","collectionId":"0747fc7a-5cbf-48b3-9c5a-a6467bdc1cd5","schemaVersion":"v3","latestBuiltDeploymentHistoryId":"6ae5a287f146f7c5c1de2206"},"feedback":{"thumbs":true},"entitlements":{"AI_CHAT":{"status":"ENABLED"},"REMOVE_BRANDING":{"status":"ENABLED"},"CONTEXTUAL_FEEDBACK":{"status":"ENABLED"},"CODE_SNIPPET_FEEDBACK":{"status":"ENABLED"},"WEB_MCP":{"status":"ENABLED"},"NARRATION":{"status":"ENABLED"}},"buildId":"6ae5a287f146f7c5c1de2206","clientVersion":"0.0.4043","searchFilterCounts":[{"language":"default","tag":"Specification","count":142},{"language":"default","tag":"Documentation","count":117},{"language":"default","tag":"Base Protocol","count":57},{"language":"default","tag":"Develop with MCP","count":56},{"language":"default","tag":"SEPs","count":46},{"language":"default","tag":"Server Features","count":46},{"language":"default","tag":"Final","count":44},{"language":"default","tag":"Community","count":34},{"language":"default","tag":"Utilities","count":33},{"language":"default","tag":"Developer tools","count":30}]},"assistantConfig":{},"basePath":"","hasChatPermissions":true,"hasWebMcpPermissions":true,"toggles":[{"name":"kill-isr","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-mintlify-slack","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-integrations-settings","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-pr-grouping","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"custom-prefix","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"analytics-v7","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"user-flows-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"no-publish-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-onboarding","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"llms-txt-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving-live","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"stripTemperatureMiddleware","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"support-platform-pylon-zendesk","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"instant-rollback","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications-server","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-fable","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fixed-ai-action-pricing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automation-resolve-merge-conflict","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"scoped-publishing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"mintql","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"page-level-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"editor-version-history-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-page-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"full-page-search","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workspace-projects","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"assistant-v5","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"byok-sep-25","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fork-pr-previews","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"revalidation-jwt","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"vite-origin","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-updated-9-15","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-sso-scim","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"hobby-abuse-scan","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"dashboard-inbox","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-signup","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"turbopuffer-dual-write","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-enabled","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"approve-review-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"sso-setup-deadline-banner","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false}],"googleFontsInlined":false},"customCss":[{"filePath":"style.css","content":"#content-area{--font-mono:var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace}#enable-section-numbers,#schema-reference{display:none}body:has(#schema-reference){--mt-md:0.5rem;--mt-lg:1rem;--mt-xl:1.5rem}#footer{flex-wrap:wrap;row-gap:1.5rem}#lf-copyright{flex:1 1 32rem;min-width:0;text-align:center;font-size:.875rem;color:rgb(var(--gray-500));line-height:1.5}"}],"page":{"pagePath":"specification/2026-07-28/server/resources","slug":"/specification/2026-07-28/server/resources","pageMetadata":{"title":"Resources","description":null,"href":"/specification/2026-07-28/server/resources"},"pageType":"default","mdx":{"mdxSource":{"compiledSource":"\"use strict\";const{Fragment:_Fragment,jsx:_jsx,jsxs:_jsxs}=arguments[0];const{useMDXComponents:_provideComponents}=arguments[0];function _createMdxContent(props){const _components={a:`a`,code:`code`,li:`li`,ol:`ol`,p:`p`,pre:`pre`,span:`span`,strong:`strong`,ul:`ul`,..._provideComponents(),...props.components},{CodeBlock,Heading,Mermaid,Note,OptimizedImage}=_components;if(!CodeBlock)_missingMdxReference(`CodeBlock`,true);if(!Heading)_missingMdxReference(`Heading`,true);if(!Mermaid)_missingMdxReference(`Mermaid`,true);if(!Note)_missingMdxReference(`Note`,true);if(!OptimizedImage)_missingMdxReference(`OptimizedImage`,true);return _jsxs(_Fragment,{children:[_jsx(`div`,{id:`enable-section-numbers`}),`\n`,_jsxs(_components.p,{children:[`The Model Context Protocol (MCP) provides a standardized way for servers to expose\nresources to clients. Resources allow servers to share data that provides context to\nlanguage models, such as files, database schemas, or application-specific information.\nEach resource is uniquely identified by a\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc3986`,children:`URI`}),`.`]}),`\n`,_jsx(Note,{children:_jsxs(_components.p,{children:[`For brevity, the request examples on this page omit the `,_jsx(_components.code,{children:`_meta`}),` request\nmetadata (`,_jsx(_components.code,{children:`io.modelcontextprotocol/protocolVersion`}),`,\n`,_jsx(_components.code,{children:`io.modelcontextprotocol/clientInfo`}),`, and\n`,_jsx(_components.code,{children:`io.modelcontextprotocol/clientCapabilities`}),`). Every request `,_jsx(_components.strong,{children:`MUST`}),` include\nthe required `,_jsx(_components.code,{children:`_meta`}),` fields; see\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/index#meta`,children:_jsx(_components.code,{children:`_meta`})}),`.`]})}),`\n`,_jsx(Heading,{level:`2`,id:`user-interaction-model`,children:`User Interaction Model`}),`\n`,_jsxs(_components.p,{children:[`Resources in MCP are designed to be `,_jsx(_components.strong,{children:`application-driven`}),`, with host applications\ndetermining how to incorporate context based on their needs.`]}),`\n`,_jsx(_components.p,{children:`For example, applications could:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`Expose resources through UI elements for explicit selection, in a tree or list view`}),`\n`,_jsx(_components.li,{children:`Allow the user to search through and filter available resources`}),`\n`,_jsx(_components.li,{children:`Implement automatic context inclusion, based on heuristics or the AI model’s selection`}),`\n`]}),`\n`,_jsx(OptimizedImage,{src:`https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=e2aa63c0e97d97eff5da87bdd3c2260e`,alt:`Example of resource context picker`,\"data-og-width\":`174`,width:`174`,\"data-og-height\":`181`,height:`181`,\"data-path\":`specification/2026-07-28/server/resource-picker.png`,\"data-optimize\":`true`,\"data-opv\":`3`,srcset:`https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?w=280\u0026fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=637cf5db19dbc6ff796b570c0b6ce7e3 280w, https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?w=560\u0026fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=108d330dbb779521f28d213267a5d333 560w, https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?w=840\u0026fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=707164b914b655d2f73b9bfc75027314 840w, https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?w=1100\u0026fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=05daa6f77de7e17ac5edd6a0e1041e53 1100w, https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?w=1650\u0026fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=b1ba3987f2adf7b7d207d98822fdb7f5 1650w, https://mintcdn.com/mcp/UAHvrCg8SwnAZwI3/specification/2026-07-28/server/resource-picker.png?w=2500\u0026fit=max\u0026auto=format\u0026n=UAHvrCg8SwnAZwI3\u0026q=85\u0026s=62656e9c9c7b1ea3e4ef08239d096f00 2500w`}),`\n`,_jsx(_components.p,{children:`However, implementations are free to expose resources through any interface pattern that\nsuits their needs—the protocol itself does not mandate any specific user\ninteraction model.`}),`\n`,_jsx(Heading,{level:`2`,id:`capabilities`,children:`Capabilities`}),`\n`,_jsxs(_components.p,{children:[`Servers that support resources `,_jsx(_components.strong,{children:`MUST`}),` declare the `,_jsx(_components.code,{children:`resources`}),` capability:`]}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`8`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`8`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"capabilities\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resources\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"listChanged\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#569CD6`},children:`true`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"subscribe\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#569CD6`},children:`true`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(_components.p,{children:`The capability supports two optional features:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`listChanged`}),`: whether the server will emit notifications when the list of available\nresources changes.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`subscribe`}),` : whether the server supports resource-specific update notifications\nfor resources requested through subscriptions/listen using the resourceSubscriptions\nfilter.`]}),`\n`]}),`\n`,_jsx(_components.p,{children:`Servers may advertise either feature independently, together or neither.`}),`\n`,_jsxs(_components.p,{children:[`Servers that support neither `,_jsx(_components.code,{children:`listChanged`}),` nor `,_jsx(_components.code,{children:`subscribe`}),` may omit it:`]}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`5`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`5`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"capabilities\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resources\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {}`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsxs(_components.p,{children:[`Servers that declare the `,_jsx(_components.code,{children:`resources`}),` capability `,_jsx(_components.strong,{children:`MUST`}),` respond to `,_jsx(_components.code,{children:`resources/list`}),`\nrequests with the set of resources currently available to the requesting client. This set\n`,_jsx(_components.strong,{children:`MAY`}),` be empty and `,_jsx(_components.strong,{children:`MAY`}),` change over time (see\n`,_jsx(_components.a,{href:`#list-changed-notification`,children:`List Changed Notification`}),`), but `,_jsx(_components.strong,{children:`MUST NOT`}),` vary\nper-connection or as a side effect of other requests on the connection. The set\n`,_jsx(_components.strong,{children:`MAY`}),` vary by the authorization presented on the request — for example, returning\nonly the resources the caller’s granted scopes permit — since credentials are\nper-request input, not connection state.`]}),`\n`,_jsx(Heading,{level:`2`,id:`protocol-messages`,children:`Protocol Messages`}),`\n`,_jsx(Heading,{level:`3`,id:`listing-resources`,children:`Listing Resources`}),`\n`,_jsxs(_components.p,{children:[`To discover available resources, clients send a `,_jsx(_components.code,{children:`resources/list`}),` request. This operation\nsupports `,_jsx(_components.a,{href:`/specification/2026-07-28/server/utilities/pagination`,children:`pagination`}),` and `,_jsx(_components.a,{href:`/specification/2026-07-28/server/utilities/caching`,children:`caching`}),`.`]}),`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Request:`})}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`8`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`8`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`1`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"method\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"resources/list\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"params\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"cursor\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"optional-cursor-value\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Response:`})}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`26`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`26`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`1`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"result\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resultType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"complete\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resources\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` {`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///project/src/main.rs\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"name\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"main.rs\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"title\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Rust Software Application Main File\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"description\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Primary application entry point\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"text/x-rust\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"icons\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` {`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"src\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"https://example.com/rust-file-icon.png\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"image/png\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"sizes\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"48x48\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`]`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` ]`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` ],`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"nextCursor\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"next-page-cursor\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"ttlMs\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`300000`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"cacheScope\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"public\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`3`,id:`reading-resources`,children:`Reading Resources`}),`\n`,_jsxs(_components.p,{children:[`To retrieve resource contents, clients send a `,_jsx(_components.code,{children:`resources/read`}),` request. This operation\nsupports `,_jsx(_components.a,{href:`/specification/2026-07-28/server/utilities/caching`,children:`caching`}),`.`]}),`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Request:`})}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`8`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`8`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`2`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"method\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"resources/read\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"params\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///project/src/main.rs\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Response:`})}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`16`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`16`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`2`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"result\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resultType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"complete\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"contents\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` {`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///project/src/main.rs\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"text/x-rust\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"text\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"fn main() {`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#D7BA7D`},children:`\\\\n`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` println!(`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#D7BA7D`},children:`\\\\\"`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`Hello world!`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#D7BA7D`},children:`\\\\\"`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`);`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#D7BA7D`},children:`\\\\n`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`}\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` ],`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"ttlMs\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`60000`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"cacheScope\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"private\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`MAY`}),` return multiple resource contents in response to a single\n`,_jsx(_components.code,{children:`resources/read`}),` request. For example, a server could return the contents of\nseveral files when a directory resource is read.`]}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`MAY`}),` also respond to `,_jsx(_components.code,{children:`resources/read`}),` with an `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns/mrtr#inputrequiredresult`,children:_jsx(_components.code,{children:`InputRequiredResult`})}),` to indicate that additional input is needed before the resource can be read. This follows the `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns/mrtr#multi-round-trip-requests`,children:`multi round-trip requests`}),` mechanism. When retrying the request, clients include `,_jsx(_components.code,{children:`inputResponses`}),` and, if provided by the server, `,_jsx(_components.code,{children:`requestState`}),` in the request parameters.`]}),`\n`,_jsxs(_components.p,{children:[`Alternatively, if the scheme of `,_jsx(_components.code,{children:`uri`}),` is `,_jsx(_components.code,{children:`https://`}),`, clients may fetch the resource directly from the web. See the `,_jsx(_components.a,{href:`#https%3A%2F%2F`,children:`Common URI Schemes section`}),` for more information.`]}),`\n`,_jsx(Heading,{level:`3`,id:`resource-templates`,children:`Resource Templates`}),`\n`,_jsxs(_components.p,{children:[`Resource templates allow servers to expose parameterized resources using\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc6570`,children:`URI templates`}),`. Arguments may be\nauto-completed through `,_jsx(_components.a,{href:`/specification/2026-07-28/server/utilities/completion`,children:`the completion API`}),`.\nThis operation supports `,_jsx(_components.a,{href:`/specification/2026-07-28/server/utilities/pagination`,children:`pagination`}),` and `,_jsx(_components.a,{href:`/specification/2026-07-28/server/utilities/caching`,children:`caching`}),`.`]}),`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Request:`})}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`8`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`8`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`3`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"method\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"resources/templates/list\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"params\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"cursor\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"optional-cursor-value\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Response:`})}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`26`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`26`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`3`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"result\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resultType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"complete\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"resourceTemplates\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` {`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uriTemplate\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///{path}\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"name\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Project Files\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"title\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"📁 Project Files\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"description\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Access files in the project directory\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"application/octet-stream\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"icons\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` {`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"src\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"https://example.com/folder-icon.png\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"image/png\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"sizes\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"48x48\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`]`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` ]`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` ],`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"nextCursor\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"next-page-cursor\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"ttlMs\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`300000`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"cacheScope\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"public\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`3`,id:`list-changed-notification`,children:`List Changed Notification`}),`\n`,_jsxs(_components.p,{children:[`When the list of available resources changes, servers that declared the `,_jsx(_components.code,{children:`listChanged`}),`\ncapability `,_jsx(_components.strong,{children:`SHOULD`}),` send a notification:`]}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`4`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`4`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"method\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"notifications/resources/list_changed\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`3`,id:`subscriptions`,children:`Subscriptions`}),`\n`,_jsxs(_components.p,{children:[`Clients subscribe to change notifications for specific resources by sending a\n`,_jsx(_components.a,{href:`/specification/2026-07-28/schema#subscriptionslistenrequest`,children:_jsx(_components.code,{children:`subscriptions/listen`})}),` request with the resource URIs listed in\n`,_jsx(_components.code,{children:`notifications.resourceSubscriptions`}),`. The server delivers\n`,_jsx(_components.code,{children:`notifications/resources/updated`}),` on the resulting stream whenever a watched resource\nchanges.`]}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`8`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`8`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"method\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"notifications/resources/updated\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"params\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"_meta\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: { `}),_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:`\"io.modelcontextprotocol/subscriptionId\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`4`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` },`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///project/src/main.rs\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsxs(_components.p,{children:[`See `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns/subscriptions`,children:`Subscriptions`}),` for the full protocol mechanics (acknowledgment,\n`,_jsx(_components.code,{children:`subscriptionId`}),` correlation, and cancellation).`]}),`\n`,_jsx(Heading,{level:`2`,id:`message-flow`,children:`Message Flow`}),`\n`,_jsx(Mermaid,{chart:`sequenceDiagram\n participant Client\n participant Server\n\n Note over Client,Server: Resource Discovery\n Client->>Server: resources/list\n Server-->>Client: List of resources\n\n Note over Client,Server: Resource Template Discovery\n Client->>Server: resources/templates/list\n Server-->>Client: List of resource templates\n\n Note over Client,Server: Resource Access\n Client->>Server: resources/read\n Server-->>Client: Resource contents\n\n Note over Client,Server: Subscribe to changes\n Client->>Server: subscriptions/listen (resourceSubscriptions)\n Server--)Client: notifications/subscriptions/acknowledged\n\n Note over Client,Server: Resource updated\n Server--)Client: notifications/resources/updated\n Client->>Server: resources/read\n Server-->>Client: Updated contents`}),`\n`,_jsx(Heading,{level:`2`,id:`data-types`,children:`Data Types`}),`\n`,_jsx(Heading,{level:`3`,id:`resource`,children:`Resource`}),`\n`,_jsx(_components.p,{children:`A resource definition includes:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`uri`}),`: Unique identifier for the resource`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`name`}),`: The name of the resource.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`title`}),`: Optional human-readable name of the resource for display purposes.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`description`}),`: Optional description`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`icons`}),`: Optional array of icons for display in user interfaces`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`mimeType`}),`: Optional MIME type`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`size`}),`: Optional size in bytes`]}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`resource-contents`,children:`Resource Contents`}),`\n`,_jsx(_components.p,{children:`Resources can contain either text or binary data:`}),`\n`,_jsx(Heading,{level:`4`,id:`text-content`,children:`Text Content`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`5`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`5`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///example.txt\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"text/plain\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"text\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Resource content\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`4`,id:`binary-content`,children:`Binary Content`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`5`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`5`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///example.png\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"image/png\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"blob\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"base64-encoded-data\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`3`,id:`annotations`,children:`Annotations`}),`\n`,_jsx(_components.p,{children:`Resources, resource templates and content blocks support optional annotations that provide hints to clients about how to use or display the resource:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:_jsx(_components.code,{children:`audience`})}),`: An array indicating the intended audience(s) for this resource. Valid values are `,_jsx(_components.code,{children:`\"user\"`}),` and `,_jsx(_components.code,{children:`\"assistant\"`}),`. For example, `,_jsx(_components.code,{children:`[\"user\", \"assistant\"]`}),` indicates content useful for both.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:_jsx(_components.code,{children:`priority`})}),`: A number from 0.0 to 1.0 indicating the importance of this resource. A value of 1 means “most important” (effectively required), while 0 means “least important” (entirely optional).`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:_jsx(_components.code,{children:`lastModified`})}),`: An ISO 8601 formatted timestamp indicating when the resource was last modified (e.g., `,_jsx(_components.code,{children:`\"2025-01-12T15:00:58Z\"`}),`).`]}),`\n`]}),`\n`,_jsx(_components.p,{children:`Example resource with annotations:`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`11`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`11`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///project/README.md\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"name\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"README.md\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"title\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Project Documentation\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"mimeType\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"text/markdown\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"annotations\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"audience\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: [`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"user\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`],`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"priority\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`0.8`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"lastModified\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2025-01-12T15:00:58Z\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(_components.p,{children:`Clients can use these annotations to:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`Filter resources based on their intended audience`}),`\n`,_jsx(_components.li,{children:`Prioritize which resources to include in context`}),`\n`,_jsx(_components.li,{children:`Display modification times or sort by recency`}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`common-uri-schemes`,children:`Common URI Schemes`}),`\n`,_jsx(_components.p,{children:`The protocol defines several standard URI schemes. This list is not\nexhaustive—implementations are always free to use additional, custom URI schemes.`}),`\n`,_jsx(Heading,{level:`3`,id:`https//`,children:`https://`}),`\n`,_jsx(_components.p,{children:`Used to represent a resource available on the web.`}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`SHOULD`}),` use this scheme only when the client is able to fetch and load the\nresource directly from the web on its own—that is, it doesn’t need to read the resource\nvia the MCP server.`]}),`\n`,_jsxs(_components.p,{children:[`For other use cases, servers `,_jsx(_components.strong,{children:`SHOULD`}),` prefer to use another URI scheme, or define a\ncustom one, even if the server will itself be downloading resource contents over the\ninternet.`]}),`\n`,_jsx(Heading,{level:`3`,id:`file//`,children:`file://`}),`\n`,_jsx(_components.p,{children:`Used to identify resources that behave like a filesystem. However, the resources do not\nneed to map to an actual physical filesystem.`}),`\n`,_jsxs(_components.p,{children:[`MCP servers `,_jsx(_components.strong,{children:`MAY`}),` identify file:// resources with an\n`,_jsx(_components.a,{href:`https://specifications.freedesktop.org/shared-mime-info-spec/0.14/ar01s02.html#id-1.3.14`,children:`XDG MIME type`}),`,\nlike `,_jsx(_components.code,{children:`inode/directory`}),`, to represent non-regular files (such as directories) that don’t\notherwise have a standard MIME type.`]}),`\n`,_jsx(Heading,{level:`3`,id:`git//`,children:`git://`}),`\n`,_jsx(_components.p,{children:`Git version control integration.`}),`\n`,_jsx(Heading,{level:`3`,id:`custom-uri-schemes`,children:`Custom URI Schemes`}),`\n`,_jsxs(_components.p,{children:[`Custom URI schemes `,_jsx(_components.strong,{children:`MUST`}),` be in accordance with `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc3986`,children:`RFC3986`}),`,\ntaking the above guidance in to account.`]}),`\n`,_jsx(Heading,{level:`2`,id:`error-handling`,children:`Error Handling`}),`\n`,_jsxs(_components.p,{children:[`If the requested resource does not exist, servers `,_jsx(_components.strong,{children:`MUST`}),` return a JSON-RPC error with\ncode `,_jsx(_components.code,{children:`-32602`}),` (Invalid Params). Servers `,_jsx(_components.strong,{children:`SHOULD`}),` return `,_jsx(_components.code,{children:`-32603`}),` for internal errors.`]}),`\n`,_jsxs(_components.p,{children:[`For backwards compatibility, clients `,_jsx(_components.strong,{children:`SHOULD`}),` also accept `,_jsx(_components.code,{children:`-32002`}),` as a\nresource not found error, as earlier protocol versions used this code.`]}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`MUST NOT`}),` return an empty `,_jsx(_components.code,{children:`contents`}),` array for a non-existent resource. An empty array is ambiguous—it could mean the resource exists but has no content, or that it doesn’t exist at all.`]}),`\n`,_jsx(_components.p,{children:`Example error:`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`11`,language:`json`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`json`,children:_jsxs(_components.code,{language:`json`,numberOfLines:`11`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`{`})}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"jsonrpc\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"2.0\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"id\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`5`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"error\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"code\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`-32602`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"message\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"Resource not found\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`,`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"data\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: {`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#9CDCFE`},children:` \"uri\"`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`: `}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:`\"file:///nonexistent.txt\"`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` }`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`}`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`2`,id:`security-considerations`,children:`Security Considerations`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`Servers `,_jsx(_components.strong,{children:`MUST`}),` validate all resource URIs`]}),`\n`,_jsxs(_components.li,{children:[`Access controls `,_jsx(_components.strong,{children:`SHOULD`}),` be implemented for sensitive resources`]}),`\n`,_jsxs(_components.li,{children:[`Binary data `,_jsx(_components.strong,{children:`MUST`}),` be properly encoded`]}),`\n`,_jsxs(_components.li,{children:[`Resource permissions `,_jsx(_components.strong,{children:`SHOULD`}),` be checked before operations`]}),`\n`,_jsxs(_components.li,{children:[`Servers `,_jsx(_components.strong,{children:`MUST`}),` sanitize file paths to prevent directory traversal attacks\nwhen serving `,_jsx(_components.code,{children:`file://`}),` resources`]}),`\n`]})]})}function MDXContent(props={}){const{wrapper:MDXLayout}={..._provideComponents(),...props.components};return MDXLayout?_jsx(MDXLayout,{...props,children:_jsx(_createMdxContent,{...props})}):_createMdxContent(props)}return{default:MDXContent};function _missingMdxReference(id,component){throw new Error(`Expected `+(component?`component`:`object`)+\" `\"+id+\"` to be defined: you likely forgot to import, pass, or provide it.\")}","frontmatter":{},"scope":{"config":{},"pageMetadata":{"title":"Resources","description":null,"href":"/specification/2026-07-28/server/resources"}}},"mdxSourceWithNoJs":null},"mdxExtracts":{"tableOfContents":[{"title":"User Interaction Model","slug":"user-interaction-model","depth":2,"children":[]},{"title":"Capabilities","slug":"capabilities","depth":2,"children":[]},{"title":"Protocol Messages","slug":"protocol-messages","depth":2,"children":[{"title":"Listing Resources","slug":"listing-resources","depth":3,"children":[]},{"title":"Reading Resources","slug":"reading-resources","depth":3,"children":[]},{"title":"Resource Templates","slug":"resource-templates","depth":3,"children":[]},{"title":"List Changed Notification","slug":"list-changed-notification","depth":3,"children":[]},{"title":"Subscriptions","slug":"subscriptions","depth":3,"children":[]}]},{"title":"Message Flow","slug":"message-flow","depth":2,"children":[]},{"title":"Data Types","slug":"data-types","depth":2,"children":[{"title":"Resource","slug":"resource","depth":3,"children":[]},{"title":"Resource Contents","slug":"resource-contents","depth":3,"children":[]},{"title":"Text Content","slug":"text-content","depth":4,"children":[]},{"title":"Binary Content","slug":"binary-content","depth":4,"children":[]},{"title":"Annotations","slug":"annotations","depth":3,"children":[]}]},{"title":"Common URI Schemes","slug":"common-uri-schemes","depth":2,"children":[{"title":"https://","slug":"https//","depth":3,"children":[]},{"title":"file://","slug":"file//","depth":3,"children":[]},{"title":"git://","slug":"git//","depth":3,"children":[]},{"title":"Custom URI Schemes","slug":"custom-uri-schemes","depth":3,"children":[]}]},{"title":"Error Handling","slug":"error-handling","depth":2,"children":[]},{"title":"Security Considerations","slug":"security-considerations","depth":2,"children":[]}],"codeExamples":{}},"jsLinks":["/_mintlify/custom/mcp/e091f6927e8ff316/footer.js","/_mintlify/custom/mcp/539ab9218716af9b/version-warning.js"],"subdomain":"mcp","siteName":"Model Context Protocol","title":"Resources - Model Context Protocol","navMaps":{"firstHrefInVersion":{"Version 2026-07-28 (latest)":{"href":"/specification/2026-07-28/server/resources","matchLevel":0},"Version 2025-11-25":{"href":"/specification/2025-11-25/server/resources","matchLevel":1},"Version 2025-06-18":{"href":"/specification/2025-06-18/server/resources","matchLevel":1},"Version 2025-03-26":{"href":"/specification/2025-03-26/server/resources","matchLevel":1},"Version 2024-11-05":{"href":"/specification/2024-11-05/server/resources","matchLevel":1},"Draft":{"href":"/specification/draft/server/resources","matchLevel":1}},"firstHrefInLanguage":{}},"lastModified":"2026-10-30T18:11:50.218Z","originalFileLocation":"specification/2026-07-28/server/resources.mdx"},"headHtml":"\u003cscript data-mint-head>(function(){var d=document.documentElement,p=null;if(!p){try{p=localStorage.getItem(\"isDarkMode\")}catch(e){}if(p==='true')p='dark';else if(p==='false')p='light';if(p!=='light'\u0026\u0026p!=='dark'\u0026\u0026p!=='system')p=\"system\"}var r=p==='system'?(matchMedia(\"(prefers-color-scheme: dark)\").matches?'dark':'light'):p;d.classList.remove(r==='dark'?'light':'dark');d.classList.add(r);d.setAttribute(\"data-theme-preference\",p)})();\u003c/script>\u003cmeta data-mint-head name=\"application-name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"generator\" content=\"Mintlify\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/android-chrome-192x192.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"apple-touch-icon\" type=\"image/png\" sizes=\"180x180\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/apple-touch-icon.png\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-16x16.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-32x32.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon.ico\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/android-chrome-192x192.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-16x16.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-32x32.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon.ico\" media=\"(prefers-color-scheme: dark)\">\u003cmeta data-mint-head property=\"og:title\" content=\"Resources - Model Context Protocol\">\u003cmeta data-mint-head property=\"og:site_name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head property=\"og:url\" content=\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources\">\u003cmeta data-mint-head property=\"og:type\" content=\"website\">\u003cmeta data-mint-head property=\"og:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head property=\"og:image:width\" content=\"1200\">\u003cmeta data-mint-head property=\"og:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"twitter:card\" content=\"summary_large_image\">\u003cmeta data-mint-head name=\"twitter:title\" content=\"Resources - Model Context Protocol\">\u003cmeta data-mint-head name=\"twitter:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head name=\"twitter:image:width\" content=\"1200\">\u003cmeta data-mint-head name=\"twitter:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"msapplication-config\" content=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/browserconfig.xml\">\u003cmeta data-mint-head name=\"apple-mobile-web-app-title\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"msapplication-TileColor\" content=\"#09090b\">\u003clink data-mint-head rel=\"canonical\" href=\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources\">\u003clink data-mint-head rel=\"alternate\" type=\"application/xml\" href=\"/sitemap.xml\">\u003clink data-mint-head rel=\"alternate\" type=\"text/markdown\" href=\"/specification/2026-07-28/server/resources.md\">\u003cscript data-mint-head type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"@id\":\"https://modelcontextprotocol.io/#organization\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"logo\":{\"@type\":\"ImageObject\",\"url\":\"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499\"}},{\"@type\":\"WebSite\",\"@id\":\"https://modelcontextprotocol.io#website\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"}},{\"@type\":\"WebPage\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources#webpage\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources\",\"name\":\"Resources\",\"dateModified\":\"2026-10-30T18:11:50.218Z\",\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"},\"breadcrumb\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources#breadcrumb\"}},{\"@type\":\"BreadcrumbList\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources#breadcrumb\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Server Features\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/index\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Resources\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources\"}]},{\"@type\":[\"Article\",\"TechArticle\"],\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources#article\",\"headline\":\"Resources\",\"name\":\"Resources\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources\",\"mainEntityOfPage\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/server/resources#webpage\"},\"image\":\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\",\"dateModified\":\"2026-10-30T18:11:50.218Z\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"},\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}}]}\u003c/script>","siteName":"Model Context Protocol","nav":{"global":null,"tabs":[{"tab":"Documentation","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"group":"Get started","pages":[{"title":"What is the Model Context Protocol (MCP)?","sidebarTitle":"What is MCP?","href":"/docs/2026-07-28/getting-started/intro"}]},{"group":"About MCP","pages":[{"title":"Architecture overview","sidebarTitle":"Architecture","href":"/docs/2026-07-28/learn/architecture"},{"title":"Understanding MCP servers","sidebarTitle":"Servers","href":"/docs/2026-07-28/learn/server-concepts"},{"title":"Understanding MCP clients","sidebarTitle":"Clients","href":"/docs/2026-07-28/learn/client-concepts"},{"title":"Versioning","href":"/docs/2026-07-28/learn/versioning"}]},{"group":"Develop with MCP","pages":[{"title":"Connect to local MCP servers","href":"/docs/2026-07-28/develop/connect-local-servers"},{"title":"Connect to remote MCP Servers","href":"/docs/2026-07-28/develop/connect-remote-servers"},{"title":"Build with Agent Skills","href":"/docs/2026-07-28/develop/build-with-agent-skills"},{"title":"Build an MCP server","href":"/docs/2026-07-28/develop/build-server"},{"group":"Clients","pages":[{"title":"Build an MCP client","href":"/docs/2026-07-28/develop/build-client"},{"title":"Client Best Practices","href":"/docs/2026-07-28/develop/clients/client-best-practices"}]},{"title":"SDKs","href":"/docs/2026-07-28/sdk"},{"group":"Security","pages":[{"title":"Understanding Authorization in MCP","href":"/docs/2026-07-28/tutorials/security/authorization"},{"title":"Security Best Practices","href":"/docs/2026-07-28/tutorials/security/security_best_practices"},{"title":"Local Server Security","href":"/docs/2026-07-28/tutorials/security/local-server-security"}]}]},{"group":"Developer tools","pages":[{"group":"Inspector","pages":[{"title":"MCP Inspector","href":"/docs/2026-07-28/tools/inspector"},{"title":"Web client","href":"/docs/2026-07-28/tools/inspector/web"},{"title":"CLI client","href":"/docs/2026-07-28/tools/inspector/cli"},{"title":"TUI client","href":"/docs/2026-07-28/tools/inspector/tui"},{"title":"mcpdo connection client","href":"/docs/2026-07-28/tools/inspector/mcpdo"},{"title":"Configuration and flags","href":"/docs/2026-07-28/tools/inspector/configuration"},{"title":"Authorization","href":"/docs/2026-07-28/tools/inspector/authorization"},{"title":"Protocol eras","href":"/docs/2026-07-28/tools/inspector/protocol-eras"},{"title":"Recipes","href":"/docs/2026-07-28/tools/inspector/recipes"},{"title":"Security","href":"/docs/2026-07-28/tools/inspector/security"}]},{"title":"Debugging","href":"/docs/2026-07-28/tools/debugging"}]},{"group":"Examples","pages":[{"title":"Example Servers","href":"/examples"}]}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/docs/2025-11-25/getting-started/intro"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/docs/2025-06-18/getting-started/intro"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/docs/2025-03-26/getting-started/intro"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/docs/2024-11-05/getting-started/intro"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/docs/draft/getting-started/intro"}]}]},{"tab":"Specification","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"title":"Specification","href":"/specification/2026-07-28"},{"title":"Key Changes","href":"/specification/2026-07-28/changelog"},{"title":"Deprecated Features","href":"/specification/2026-07-28/deprecated"},{"title":"Architecture","href":"/specification/2026-07-28/architecture/index"},{"group":"Base Protocol","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/index"},{"title":"Versioning and Compatibility","href":"/specification/2026-07-28/basic/versioning"},{"group":"Message Patterns","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/patterns/index"},{"title":"Multi Round-Trip Requests","href":"/specification/2026-07-28/basic/patterns/mrtr"},{"title":"Subscriptions","href":"/specification/2026-07-28/basic/patterns/subscriptions"},{"title":"Cancellation","href":"/specification/2026-07-28/basic/patterns/cancellation"},{"title":"Progress","href":"/specification/2026-07-28/basic/patterns/progress"}]},{"group":"Transports","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/transports/index"},{"title":"stdio","href":"/specification/2026-07-28/basic/transports/stdio"},{"title":"Streamable HTTP","href":"/specification/2026-07-28/basic/transports/streamable-http"}]},{"group":"Authorization","pages":[{"title":"Authorization","sidebarTitle":"Overview","href":"/specification/2026-07-28/basic/authorization/index"},{"title":"Authorization Server Discovery","href":"/specification/2026-07-28/basic/authorization/authorization-server-discovery"},{"title":"Client Registration","href":"/specification/2026-07-28/basic/authorization/client-registration"},{"title":"Authorization Security Considerations","sidebarTitle":"Security Considerations","href":"/specification/2026-07-28/basic/authorization/security-considerations"}]}]},{"group":"Client Features","pages":[{"title":"Roots","href":"/specification/2026-07-28/client/roots"},{"title":"Sampling","href":"/specification/2026-07-28/client/sampling"},{"title":"Elicitation","href":"/specification/2026-07-28/client/elicitation"}]},{"group":"Server Features","pages":[{"title":"Overview","href":"/specification/2026-07-28/server/index"},{"title":"Discovery","href":"/specification/2026-07-28/server/discover"},{"title":"Prompts","description":null,"href":"/specification/2026-07-28/server/prompts"},{"title":"Resources","href":"/specification/2026-07-28/server/resources"},{"title":"Tools","description":null,"href":"/specification/2026-07-28/server/tools"},{"group":"Utilities","pages":[{"title":"Caching","href":"/specification/2026-07-28/server/utilities/caching"},{"title":"Completion","href":"/specification/2026-07-28/server/utilities/completion"},{"title":"Logging","href":"/specification/2026-07-28/server/utilities/logging"},{"title":"Pagination","href":"/specification/2026-07-28/server/utilities/pagination"}]}]},{"title":"Schema Reference","href":"/specification/2026-07-28/schema"}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/specification/2025-11-25/server/resources"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/specification/2025-06-18/server/resources"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/specification/2025-03-26/server/resources"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/specification/2024-11-05/server/resources"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/specification/draft/server/resources"}]}]},{"tab":"Extensions","pages":[{"title":"Extensions","href":"/extensions/overview"}]},{"tab":"Registry","pages":[{"title":"Registry","href":"/registry/about"}]},{"tab":"SEPs","pages":[{"title":"SEPs","href":"/seps"}]},{"tab":"Community","pages":[{"title":"Community","href":"/community/contributing"}]}]},"basePath":"","title":"Resources - Model Context Protocol","buildId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","deploymentId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","dynamics":["a74be98ba7"],"chunks":["zoom-image-lightbox-DL4wrF0w.js","lightbox-handle-r17bVUz3.js"]}

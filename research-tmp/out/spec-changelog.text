@@ -1,0 +1,460 @@
+Key Changes - Model Context Protocol
+Documentation Index
+Fetch the complete documentation index at:
+/llms.txt
+Use this file to discover all available pages before exploring further.
+Skip to main content
+Assistant
+Responses are generated using AI and may contain mistakes.
+Model Context Protocol
+ home page
+Version 2026-07-28 (latest)
+Search...
+⌘
+K
+Ask Assistant
+⌘
+I
+Blog
+GitHub
+Discord
+Search...
+Navigation
+Key Changes
+Documentation
+Specification
+Extensions
+Registry
+SEPs
+Community
+Specification
+Key Changes
+Deprecated Features
+Architecture
+Base Protocol
+Overview
+Versioning and Compatibility
+Message Patterns
+Transports
+Authorization
+Client Features
+Roots
+Sampling
+Elicitation
+Server Features
+Overview
+Discovery
+Prompts
+Resources
+Tools
+Utilities
+Schema Reference
+On this page
+Back to top
+Major changes
+Minor changes
+Deprecated
+Other schema changes
+Governance and process updates
+Process changes
+Full changelog
+Key Changes
+Copy page
+Copy page
+Copy page
+Copy page
+This document lists changes made to the Model Context Protocol (MCP) specification since
+the previous revision, 
+2025-11-25
+.
+​
+Major changes
+Remove protocol-level sessions and the 
+Mcp-Session-Id
+ header from the Streamable HTTP transport. List endpoints (
+tools/list
+, 
+resources/list
+, 
+prompts/list
+) no longer vary per-connection. Servers that need cross-call state use explicit, server-minted handles passed as ordinary tool arguments (
+SEP-2567
+).
+Make MCP stateless: remove the 
+initialize
+/
+notifications/initialized
+ handshake. Every request now carries its protocol version and client capabilities in 
+_meta
+ (
+io.modelcontextprotocol/protocolVersion
+, 
+io.modelcontextprotocol/clientCapabilities
+). Clients SHOULD identify themselves on each request (
+io.modelcontextprotocol/clientInfo
+), and servers SHOULD identify themselves in each result’s 
+_meta
+ (
+io.modelcontextprotocol/serverInfo
+). Version mismatches return 
+UnsupportedProtocolVersionError
+ (
+SEP-2575
+).
+Add 
+server/discover
+: servers MUST implement this RPC to advertise their supported protocol versions, capabilities, and identity. Clients MAY call it before any other request for up-front version selection, or use it as a backward-compatibility probe on STDIO (
+SEP-2575
+).
+Replace the HTTP GET endpoint and 
+resources/subscribe
+/
+resources/unsubscribe
+ with 
+subscriptions/listen
+: a single long-lived POST-response stream for opted-in server-to-client change notifications. Clients opt in to specific types (
+toolsListChanged
+, 
+promptsListChanged
+, 
+resourcesListChanged
+, 
+resourceSubscriptions
+); the server acknowledges and tags notifications with 
+io.modelcontextprotocol/subscriptionId
+. Request-scoped notifications such as 
+notifications/progress
+ and 
+notifications/message
+ continue to flow on the response stream of the request they relate to, not the 
+subscriptions/listen
+ stream (
+SEP-2575
+).
+Remove 
+ping
+, 
+logging/setLevel
+, and 
+notifications/roots/list_changed
+. Log level is now set per-request via 
+io.modelcontextprotocol/logLevel
+ in 
+_meta
+; servers MUST NOT emit 
+notifications/message
+ for requests that did not include this field (
+SEP-2575
+).
+Move experimental tasks out of the core protocol and into an official extension (
+io.modelcontextprotocol/tasks
+). The redesigned extension replaces the blocking 
+tasks/result
+ method with polling via 
+tasks/get
+ and a new 
+tasks/update
+ for client-to-server input, removes 
+tasks/list
+, and allows servers to return task handles unsolicited without per-request opt-in (
+SEP-2663
+).
+Multi Round-Trip Requests (MRTR) pattern introduced which replaces the previous approach of sending server-initiated requests, such as 
+roots/list
+, 
+sampling/createMessage
+, or 
+elicitation/create
+. Servers return an 
+InputRequiredResult
+ (
+resultType: "input_required"
+) whose 
+inputRequests
+ field carries the requests for the additional information needed to process the request. Clients respond with 
+inputResponses
+ on a retry of the original request providing the requested information. (
+SEP-2322
+).
+All results now carry a required 
+resultType
+ field: 
+"complete"
+ for ordinary results and 
+"input_required"
+ for 
+multi round-trip request
+ interim results. Clients 
+MUST
+ treat results from earlier-protocol servers that omit the field as 
+"complete"
+ (
+SEP-2322
+).
+Remove SSE stream resumability and message redelivery (the 
+Last-Event-ID
+ header and SSE event IDs) from the Streamable HTTP transport. A broken response stream loses the in-flight request; clients 
+MUST
+ re-issue it as a new request with a new request ID (
+SEP-2575
+).
+​
+Minor changes
+Add 
+extensions
+ field to 
+ClientCapabilities
+ and 
+ServerCapabilities
+ to support optional 
+extensions
+ beyond the core protocol.
+Document OpenTelemetry trace context propagation conventions for 
+_meta
+ keys (
+traceparent
+, 
+tracestate
+, 
+baggage
+) (
+SEP-414
+).
+Servers 
+SHOULD
+ return tools from 
+tools/list
+ in a deterministic order to enable client-side caching and improve LLM prompt cache hit rates.
+Require standard MCP request headers (
+Mcp-Method
+, 
+Mcp-Name
+) on Streamable HTTP POST requests, and add support for custom headers from tool parameters via 
+x-mcp-header
+ (
+SEP-2243
+).
+Require 
+ttlMs
+ and 
+cacheScope
+ fields on results returned by 
+tools/list
+, 
+prompts/list
+, 
+resources/list
+, 
+resources/read
+, and 
+resources/templates/list
+ via a new 
+CacheableResult
+ interface. 
+ttlMs
+ is a freshness hint (in milliseconds) allowing clients to cache responses and reduce polling; 
+cacheScope
+ (
+"public"
+ or 
+"private"
+) controls whether shared intermediaries may cache the response. Both fields complement existing 
+listChanged
+ notifications (
+SEP-2549
+).
+Change resource not found error code from 
+-32002
+ to 
+-32602
+ (Invalid Params) to align with JSON-RPC specification.
+Authorization servers 
+SHOULD
+ include the 
+iss
+ parameter in authorization responses per
+RFC 9207
+, and MCP clients 
+MUST
+ validate a
+present 
+iss
+ against the recorded issuer before redeeming the authorization code
+(
+SEP-2468
+).
+Require MCP clients to specify an appropriate 
+application_type
+ during Dynamic Client
+Registration to avoid OpenID Connect redirect URI conflicts
+(
+SEP-837
+).
+Clarify that client credentials are bound to the authorization server that issued them:
+clients 
+MUST
+ key persisted credentials by the issuer identifier, 
+MUST NOT
+ reuse them
+with a different authorization server, and 
+MUST
+ re-register when the authorization server
+changes (
+SEP-2352
+).
+Loosen 
+inputSchema
+ and 
+outputSchema
+ to allow any JSON Schema 2020-12 keywords, and
+structuredContent
+ to allow any JSON value. Add 
+$ref
+ resolution requirements and
+composition-keyword resource bounds
+(
+SEP-2106
+).
+Remove the 
+notifications/elicitation/complete
+ notification and the
+elicitationId
+ field of URL mode elicitation requests, both introduced in
+2025-11-25
+. Under the
+Multi Round-Trip Requests
+ pattern, the
+client learns the outcome of an out-of-band interaction by retrying the original
+request, so a server-initiated completion signal — and the identifier used to
+correlate it — no longer fit the protocol. Servers needing to correlate an
+elicitation across retries encode their own identifier in 
+requestState
+.
+Define an 
+error code allocation policy
+partitioning the JSON-RPC server-error range: 
+-32000
+ to 
+-32019
+ remains
+implementation-defined (existing SDK usage is grandfathered), 
+-32020
+ to 
+-32099
+ is
+reserved for the MCP specification. Renumber the error codes introduced in this draft
+accordingly — 
+HeaderMismatch
+-32001
+ → 
+-32020
+, 
+MissingRequiredClientCapability
+-32003
+ → 
+-32021
+, 
+UnsupportedProtocolVersion
+-32004
+ → 
+-32022
+ — and add
+HeaderMismatchError
+ to the schema, which previously existed only in transport prose.
+​
+Deprecated
+Features listed here remain part of the specification but are scheduled for removal under the 
+feature lifecycle and deprecation policy
+. New implementations should not adopt them. The 
+deprecated features registry
+ tracks every feature currently in the Deprecated state.
+Deprecate the Roots, Sampling, and Logging features
+(
+SEP-2577
+).
+These features remain fully functional during the deprecation window but new
+implementations should not add support for them. Suggested migrations: pass
+directories or files via tool parameters, resource URIs, or server
+configuration instead of Roots; integrate directly with LLM provider APIs
+instead of Sampling; log to 
+stderr
+ (stdio) or use OpenTelemetry instead of
+Logging.
+Reclassify the HTTP+SSE transport (deprecated since protocol version
+2025-03-26
+) as Deprecated under the feature lifecycle policy
+(
+SEP-2596
+).
+Migrate to 
+Streamable HTTP
+.
+Reclassify the 
+includeContext
+ values 
+"thisServer"
+ and 
+"allServers"
+(soft-deprecated since protocol version 
+2025-11-25
+) as Deprecated
+(
+SEP-2596
+).
+Omit the field or use 
+"none"
+; these values will be removed no later than
+the Sampling feature itself.
+Deprecate the OAuth 2.0 Dynamic Client Registration Protocol
+(
+RFC7591
+) as a client registration
+mechanism in favor of
+Client ID Metadata Documents
+(
+PR #2858
+).
+It remains available for backwards compatibility with authorization servers that do
+not support Client ID Metadata Documents.
+​
+Other schema changes
+schema.json
+ now correctly reflects that the Typescript definition of minimum/maximum/default are 
+number
+’s and not just 
+integers
+. This was caused by running the generator using 
+--defaultNumberType integer
+ (
+PR#2710
+).
+​
+Governance and process updates
+Adopt a specification
+feature lifecycle and deprecation policy
+defining the Active, Deprecated, and Removed feature states, a minimum
+twelve-month deprecation window, and a
+registry of deprecated features
+(
+SEP-2596
+).
+​
+Process changes
+Formalize PR-based SEP workflow with markdown files in 
+seps/
+ directory, PR-derived numbering, sponsor responsibilities, and status management via PR labels (
+SEP-1850
+).
+​
+Full changelog
+For a complete list of all changes that have been made since the last protocol revision,
+see GitHub
+.
+Was this page helpful?
+Yes
+No
+Specification
+Deprecated Features
+github
+discord
+{"docsConfig":{"theme":"mint","$schema":"https://mintlify.com/docs.json","name":"Model Context Protocol","colors":{"primary":"#09090b","light":"#FAFAFA","dark":"#09090b"},"logo":{"light":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499","dark":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/dark.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=1227cb7feb8344f9f6288c6b5b0a6d80"},"favicon":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/favicon.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=e419be76252c1cb0a6924602b9de428f","navbar":{"links":[{"href":"https://blog.modelcontextprotocol.io","label":"Blog"},{"href":"https://github.com/modelcontextprotocol","label":"GitHub"},{"href":"https://discord.gg/6CSzBmMkjX","label":"Discord"}]},"footer":{"socials":{"github":"https://github.com/modelcontextprotocol","discord":"https://discord.gg/6CSzBmMkjX"}},"seo":{"metatags":{"og:image":"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png"},"indexing":"navigable"},"contextual":{"options":["copy","view"],"display":"header"},"styling":{"latex":false},"navigation":{"pages":[]}},"deployment":{"deploymentMetadataValue":{"subdomain":"mcp","hasAudioNarration":false,"actualSubdomain":"mcp","customDomains":["modelcontextprotocol.io","modelcontextprotocol.net","modelcontextprotocol.org"],"gitSource":{"type":"github","owner":"modelcontextprotocol","repo":"modelcontextprotocol","deployBranch":"main","contentDirectory":"docs","isPrivate":true,"mountPath":"","label":""},"chroma":{"liveDeploymentHistoryId":"6ae5a287f146f7c5c1de2206","collectionId":"0747fc7a-5cbf-48b3-9c5a-a6467bdc1cd5","schemaVersion":"v3","latestBuiltDeploymentHistoryId":"6ae5a287f146f7c5c1de2206"},"feedback":{"thumbs":true},"entitlements":{"AI_CHAT":{"status":"ENABLED"},"REMOVE_BRANDING":{"status":"ENABLED"},"CONTEXTUAL_FEEDBACK":{"status":"ENABLED"},"CODE_SNIPPET_FEEDBACK":{"status":"ENABLED"},"WEB_MCP":{"status":"ENABLED"},"NARRATION":{"status":"ENABLED"}},"buildId":"6ae5a287f146f7c5c1de2206","clientVersion":"0.0.4043","searchFilterCounts":[{"language":"default","tag":"Specification","count":142},{"language":"default","tag":"Documentation","count":117},{"language":"default","tag":"Base Protocol","count":57},{"language":"default","tag":"Develop with MCP","count":56},{"language":"default","tag":"SEPs","count":46},{"language":"default","tag":"Server Features","count":46},{"language":"default","tag":"Final","count":44},{"language":"default","tag":"Community","count":34},{"language":"default","tag":"Utilities","count":33},{"language":"default","tag":"Developer tools","count":30}]},"assistantConfig":{},"basePath":"","hasChatPermissions":true,"hasWebMcpPermissions":true,"toggles":[{"name":"kill-isr","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-mintlify-slack","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-integrations-settings","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-pr-grouping","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"custom-prefix","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"analytics-v7","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"user-flows-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"no-publish-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-onboarding","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"llms-txt-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving-live","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"stripTemperatureMiddleware","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"support-platform-pylon-zendesk","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"instant-rollback","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications-server","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-fable","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fixed-ai-action-pricing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automation-resolve-merge-conflict","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"scoped-publishing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"mintql","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"page-level-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"editor-version-history-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-page-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"full-page-search","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workspace-projects","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"assistant-v5","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"byok-sep-25","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fork-pr-previews","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"revalidation-jwt","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"vite-origin","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-updated-9-15","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-sso-scim","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"hobby-abuse-scan","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"dashboard-inbox","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-signup","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"turbopuffer-dual-write","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-enabled","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"approve-review-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"sso-setup-deadline-banner","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false}],"googleFontsInlined":false},"customCss":[{"filePath":"style.css","content":"#content-area{--font-mono:var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace}#enable-section-numbers,#schema-reference{display:none}body:has(#schema-reference){--mt-md:0.5rem;--mt-lg:1rem;--mt-xl:1.5rem}#footer{flex-wrap:wrap;row-gap:1.5rem}#lf-copyright{flex:1 1 32rem;min-width:0;text-align:center;font-size:.875rem;color:rgb(var(--gray-500));line-height:1.5}"}],"page":{"pagePath":"specification/2026-07-28/changelog","slug":"/specification/2026-07-28/changelog","pageMetadata":{"title":"Key Changes","description":null,"href":"/specification/2026-07-28/changelog"},"pageType":"default","mdx":{"mdxSource":{"compiledSource":"\"use strict\";const{Fragment:_Fragment,jsx:_jsx,jsxs:_jsxs}=arguments[0];const{useMDXComponents:_provideComponents}=arguments[0];function _createMdxContent(props){const _components={a:`a`,code:`code`,li:`li`,ol:`ol`,p:`p`,strong:`strong`,..._provideComponents(),...props.components},{Heading}=_components;if(!Heading)_missingMdxReference(`Heading`,true);return _jsxs(_Fragment,{children:[_jsx(`div`,{id:`enable-section-numbers`}),`\n`,_jsxs(_components.p,{children:[`This document lists changes made to the Model Context Protocol (MCP) specification since\nthe previous revision, `,_jsx(_components.a,{href:`/specification/2025-11-25`,children:`2025-11-25`}),`.`]}),`\n`,_jsx(Heading,{level:`2`,id:`major-changes`,children:`Major changes`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Remove protocol-level sessions and the `,_jsx(_components.code,{children:`Mcp-Session-Id`}),` header from the Streamable HTTP transport. List endpoints (`,_jsx(_components.code,{children:`tools/list`}),`, `,_jsx(_components.code,{children:`resources/list`}),`, `,_jsx(_components.code,{children:`prompts/list`}),`) no longer vary per-connection. Servers that need cross-call state use explicit, server-minted handles passed as ordinary tool arguments (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2567`,children:`SEP-2567`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Make MCP stateless: remove the `,_jsx(_components.code,{children:`initialize`}),`/`,_jsx(_components.code,{children:`notifications/initialized`}),` handshake. Every request now carries its protocol version and client capabilities in `,_jsx(_components.code,{children:`_meta`}),` (`,_jsx(_components.code,{children:`io.modelcontextprotocol/protocolVersion`}),`, `,_jsx(_components.code,{children:`io.modelcontextprotocol/clientCapabilities`}),`). Clients SHOULD identify themselves on each request (`,_jsx(_components.code,{children:`io.modelcontextprotocol/clientInfo`}),`), and servers SHOULD identify themselves in each result’s `,_jsx(_components.code,{children:`_meta`}),` (`,_jsx(_components.code,{children:`io.modelcontextprotocol/serverInfo`}),`). Version mismatches return `,_jsx(_components.code,{children:`UnsupportedProtocolVersionError`}),` (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575`,children:`SEP-2575`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Add `,_jsx(_components.code,{children:`server/discover`}),`: servers MUST implement this RPC to advertise their supported protocol versions, capabilities, and identity. Clients MAY call it before any other request for up-front version selection, or use it as a backward-compatibility probe on STDIO (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575`,children:`SEP-2575`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Replace the HTTP GET endpoint and `,_jsx(_components.code,{children:`resources/subscribe`}),`/`,_jsx(_components.code,{children:`resources/unsubscribe`}),` with `,_jsx(_components.code,{children:`subscriptions/listen`}),`: a single long-lived POST-response stream for opted-in server-to-client change notifications. Clients opt in to specific types (`,_jsx(_components.code,{children:`toolsListChanged`}),`, `,_jsx(_components.code,{children:`promptsListChanged`}),`, `,_jsx(_components.code,{children:`resourcesListChanged`}),`, `,_jsx(_components.code,{children:`resourceSubscriptions`}),`); the server acknowledges and tags notifications with `,_jsx(_components.code,{children:`io.modelcontextprotocol/subscriptionId`}),`. Request-scoped notifications such as `,_jsx(_components.code,{children:`notifications/progress`}),` and `,_jsx(_components.code,{children:`notifications/message`}),` continue to flow on the response stream of the request they relate to, not the `,_jsx(_components.code,{children:`subscriptions/listen`}),` stream (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575`,children:`SEP-2575`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Remove `,_jsx(_components.code,{children:`ping`}),`, `,_jsx(_components.code,{children:`logging/setLevel`}),`, and `,_jsx(_components.code,{children:`notifications/roots/list_changed`}),`. Log level is now set per-request via `,_jsx(_components.code,{children:`io.modelcontextprotocol/logLevel`}),` in `,_jsx(_components.code,{children:`_meta`}),`; servers MUST NOT emit `,_jsx(_components.code,{children:`notifications/message`}),` for requests that did not include this field (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575`,children:`SEP-2575`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Move experimental tasks out of the core protocol and into an official extension (`,_jsx(_components.code,{children:`io.modelcontextprotocol/tasks`}),`). The redesigned extension replaces the blocking `,_jsx(_components.code,{children:`tasks/result`}),` method with polling via `,_jsx(_components.code,{children:`tasks/get`}),` and a new `,_jsx(_components.code,{children:`tasks/update`}),` for client-to-server input, removes `,_jsx(_components.code,{children:`tasks/list`}),`, and allows servers to return task handles unsolicited without per-request opt-in (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2663`,children:`SEP-2663`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Multi Round-Trip Requests (MRTR) pattern introduced which replaces the previous approach of sending server-initiated requests, such as `,_jsx(_components.code,{children:`roots/list`}),`, `,_jsx(_components.code,{children:`sampling/createMessage`}),`, or `,_jsx(_components.code,{children:`elicitation/create`}),`. Servers return an `,_jsx(_components.code,{children:`InputRequiredResult`}),` (`,_jsx(_components.code,{children:`resultType: \"input_required\"`}),`) whose `,_jsx(_components.code,{children:`inputRequests`}),` field carries the requests for the additional information needed to process the request. Clients respond with `,_jsx(_components.code,{children:`inputResponses`}),` on a retry of the original request providing the requested information. (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2322`,children:`SEP-2322`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`All results now carry a required `,_jsx(_components.code,{children:`resultType`}),` field: `,_jsx(_components.code,{children:`\"complete\"`}),` for ordinary results and `,_jsx(_components.code,{children:`\"input_required\"`}),` for `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns/mrtr`,children:`multi round-trip request`}),` interim results. Clients `,_jsx(_components.strong,{children:`MUST`}),` treat results from earlier-protocol servers that omit the field as `,_jsx(_components.code,{children:`\"complete\"`}),` (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2322`,children:`SEP-2322`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Remove SSE stream resumability and message redelivery (the `,_jsx(_components.code,{children:`Last-Event-ID`}),` header and SSE event IDs) from the Streamable HTTP transport. A broken response stream loses the in-flight request; clients `,_jsx(_components.strong,{children:`MUST`}),` re-issue it as a new request with a new request ID (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2575`,children:`SEP-2575`}),`).`]}),`\n`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`minor-changes`,children:`Minor changes`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`Add `,_jsx(_components.code,{children:`extensions`}),` field to `,_jsx(_components.code,{children:`ClientCapabilities`}),` and `,_jsx(_components.code,{children:`ServerCapabilities`}),` to support optional `,_jsx(_components.a,{href:`/docs/extensions/overview`,children:`extensions`}),` beyond the core protocol.`]}),`\n`,_jsxs(_components.li,{children:[`Document OpenTelemetry trace context propagation conventions for `,_jsx(_components.code,{children:`_meta`}),` keys (`,_jsx(_components.code,{children:`traceparent`}),`, `,_jsx(_components.code,{children:`tracestate`}),`, `,_jsx(_components.code,{children:`baggage`}),`) (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/414`,children:`SEP-414`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Servers `,_jsx(_components.strong,{children:`SHOULD`}),` return tools from `,_jsx(_components.code,{children:`tools/list`}),` in a deterministic order to enable client-side caching and improve LLM prompt cache hit rates.`]}),`\n`,_jsxs(_components.li,{children:[`Require standard MCP request headers (`,_jsx(_components.code,{children:`Mcp-Method`}),`, `,_jsx(_components.code,{children:`Mcp-Name`}),`) on Streamable HTTP POST requests, and add support for custom headers from tool parameters via `,_jsx(_components.code,{children:`x-mcp-header`}),` (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2243`,children:`SEP-2243`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Require `,_jsx(_components.code,{children:`ttlMs`}),` and `,_jsx(_components.code,{children:`cacheScope`}),` fields on results returned by `,_jsx(_components.code,{children:`tools/list`}),`, `,_jsx(_components.code,{children:`prompts/list`}),`, `,_jsx(_components.code,{children:`resources/list`}),`, `,_jsx(_components.code,{children:`resources/read`}),`, and `,_jsx(_components.code,{children:`resources/templates/list`}),` via a new `,_jsx(_components.code,{children:`CacheableResult`}),` interface. `,_jsx(_components.code,{children:`ttlMs`}),` is a freshness hint (in milliseconds) allowing clients to cache responses and reduce polling; `,_jsx(_components.code,{children:`cacheScope`}),` (`,_jsx(_components.code,{children:`\"public\"`}),` or `,_jsx(_components.code,{children:`\"private\"`}),`) controls whether shared intermediaries may cache the response. Both fields complement existing `,_jsx(_components.code,{children:`listChanged`}),` notifications (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2549`,children:`SEP-2549`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Change resource not found error code from `,_jsx(_components.code,{children:`-32002`}),` to `,_jsx(_components.code,{children:`-32602`}),` (Invalid Params) to align with JSON-RPC specification.`]}),`\n`,_jsxs(_components.li,{children:[`Authorization servers `,_jsx(_components.strong,{children:`SHOULD`}),` include the `,_jsx(_components.code,{children:`iss`}),` parameter in authorization responses per\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207`,children:`RFC 9207`}),`, and MCP clients `,_jsx(_components.strong,{children:`MUST`}),` validate a\npresent `,_jsx(_components.code,{children:`iss`}),` against the recorded issuer before redeeming the authorization code\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2468`,children:`SEP-2468`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Require MCP clients to specify an appropriate `,_jsx(_components.code,{children:`application_type`}),` during Dynamic Client\nRegistration to avoid OpenID Connect redirect URI conflicts\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/837`,children:`SEP-837`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Clarify that client credentials are bound to the authorization server that issued them:\nclients `,_jsx(_components.strong,{children:`MUST`}),` key persisted credentials by the issuer identifier, `,_jsx(_components.strong,{children:`MUST NOT`}),` reuse them\nwith a different authorization server, and `,_jsx(_components.strong,{children:`MUST`}),` re-register when the authorization server\nchanges (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2352`,children:`SEP-2352`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Loosen `,_jsx(_components.code,{children:`inputSchema`}),` and `,_jsx(_components.code,{children:`outputSchema`}),` to allow any JSON Schema 2020-12 keywords, and\n`,_jsx(_components.code,{children:`structuredContent`}),` to allow any JSON value. Add `,_jsx(_components.code,{children:`$ref`}),` resolution requirements and\ncomposition-keyword resource bounds\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2106`,children:`SEP-2106`}),`).`]}),`\n`,_jsxs(_components.li,{children:[`Remove the `,_jsx(_components.code,{children:`notifications/elicitation/complete`}),` notification and the\n`,_jsx(_components.code,{children:`elicitationId`}),` field of URL mode elicitation requests, both introduced in\n`,_jsx(_components.code,{children:`2025-11-25`}),`. Under the\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/patterns/mrtr`,children:`Multi Round-Trip Requests`}),` pattern, the\nclient learns the outcome of an out-of-band interaction by retrying the original\nrequest, so a server-initiated completion signal — and the identifier used to\ncorrelate it — no longer fit the protocol. Servers needing to correlate an\nelicitation across retries encode their own identifier in `,_jsx(_components.code,{children:`requestState`}),`.`]}),`\n`,_jsxs(_components.li,{children:[`Define an `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/index#error-codes`,children:`error code allocation policy`}),`\npartitioning the JSON-RPC server-error range: `,_jsx(_components.code,{children:`-32000`}),` to `,_jsx(_components.code,{children:`-32019`}),` remains\nimplementation-defined (existing SDK usage is grandfathered), `,_jsx(_components.code,{children:`-32020`}),` to `,_jsx(_components.code,{children:`-32099`}),` is\nreserved for the MCP specification. Renumber the error codes introduced in this draft\naccordingly — `,_jsx(_components.code,{children:`HeaderMismatch`}),` `,_jsx(_components.code,{children:`-32001`}),` → `,_jsx(_components.code,{children:`-32020`}),`, `,_jsx(_components.code,{children:`MissingRequiredClientCapability`}),`\n`,_jsx(_components.code,{children:`-32003`}),` → `,_jsx(_components.code,{children:`-32021`}),`, `,_jsx(_components.code,{children:`UnsupportedProtocolVersion`}),` `,_jsx(_components.code,{children:`-32004`}),` → `,_jsx(_components.code,{children:`-32022`}),` — and add\n`,_jsx(_components.code,{children:`HeaderMismatchError`}),` to the schema, which previously existed only in transport prose.`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`deprecated`,children:`Deprecated`}),`\n`,_jsxs(_components.p,{children:[`Features listed here remain part of the specification but are scheduled for removal under the `,_jsx(_components.a,{href:`/community/feature-lifecycle`,children:`feature lifecycle and deprecation policy`}),`. New implementations should not adopt them. The `,_jsx(_components.a,{href:`/specification/2026-07-28/deprecated`,children:`deprecated features registry`}),` tracks every feature currently in the Deprecated state.`]}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Deprecate the Roots, Sampling, and Logging features\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2577`,children:`SEP-2577`}),`).\nThese features remain fully functional during the deprecation window but new\nimplementations should not add support for them. Suggested migrations: pass\ndirectories or files via tool parameters, resource URIs, or server\nconfiguration instead of Roots; integrate directly with LLM provider APIs\ninstead of Sampling; log to `,_jsx(_components.code,{children:`stderr`}),` (stdio) or use OpenTelemetry instead of\nLogging.`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Reclassify the HTTP+SSE transport (deprecated since protocol version\n`,_jsx(_components.code,{children:`2025-03-26`}),`) as Deprecated under the feature lifecycle policy\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2596`,children:`SEP-2596`}),`).\nMigrate to `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/transports/streamable-http`,children:`Streamable HTTP`}),`.`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Reclassify the `,_jsx(_components.code,{children:`includeContext`}),` values `,_jsx(_components.code,{children:`\"thisServer\"`}),` and `,_jsx(_components.code,{children:`\"allServers\"`}),`\n(soft-deprecated since protocol version `,_jsx(_components.code,{children:`2025-11-25`}),`) as Deprecated\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2596`,children:`SEP-2596`}),`).\nOmit the field or use `,_jsx(_components.code,{children:`\"none\"`}),`; these values will be removed no later than\nthe Sampling feature itself.`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Deprecate the OAuth 2.0 Dynamic Client Registration Protocol\n(`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc7591`,children:`RFC7591`}),`) as a client registration\nmechanism in favor of\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/client-registration#client-id-metadata-documents`,children:`Client ID Metadata Documents`}),`\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2858`,children:`PR #2858`}),`).\nIt remains available for backwards compatibility with authorization servers that do\nnot support Client ID Metadata Documents.`]}),`\n`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`other-schema-changes`,children:`Other schema changes`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`schema.json`}),` now correctly reflects that the Typescript definition of minimum/maximum/default are `,_jsx(_components.code,{children:`number`}),`’s and not just `,_jsx(_components.code,{children:`integers`}),`. This was caused by running the generator using `,_jsx(_components.code,{children:`--defaultNumberType integer`}),` (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2710`,children:`PR#2710`}),`).`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`governance-and-process-updates`,children:`Governance and process updates`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`Adopt a specification\n`,_jsx(_components.a,{href:`/community/feature-lifecycle`,children:`feature lifecycle and deprecation policy`}),`\ndefining the Active, Deprecated, and Removed feature states, a minimum\ntwelve-month deprecation window, and a\n`,_jsx(_components.a,{href:`/specification/2026-07-28/deprecated`,children:`registry of deprecated features`}),`\n(`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/modelcontextprotocol/pull/2596`,children:`SEP-2596`}),`).`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`process-changes`,children:`Process changes`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`Formalize PR-based SEP workflow with markdown files in `,_jsx(_components.code,{children:`seps/`}),` directory, PR-derived numbering, sponsor responsibilities, and status management via PR labels (`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/specification/pull/1850`,children:`SEP-1850`}),`).`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`full-changelog`,children:`Full changelog`}),`\n`,_jsxs(_components.p,{children:[`For a complete list of all changes that have been made since the last protocol revision,\n`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/specification/compare/2025-11-25...2026-07-28`,children:`see GitHub`}),`.`]})]})}function MDXContent(props={}){const{wrapper:MDXLayout}={..._provideComponents(),...props.components};return MDXLayout?_jsx(MDXLayout,{...props,children:_jsx(_createMdxContent,{...props})}):_createMdxContent(props)}return{default:MDXContent};function _missingMdxReference(id,component){throw new Error(`Expected `+(component?`component`:`object`)+\" `\"+id+\"` to be defined: you likely forgot to import, pass, or provide it.\")}","frontmatter":{},"scope":{"config":{},"pageMetadata":{"title":"Key Changes","description":null,"href":"/specification/2026-07-28/changelog"}}},"mdxSourceWithNoJs":null},"mdxExtracts":{"tableOfContents":[{"title":"Major changes","slug":"major-changes","depth":2,"children":[]},{"title":"Minor changes","slug":"minor-changes","depth":2,"children":[]},{"title":"Deprecated","slug":"deprecated","depth":2,"children":[]},{"title":"Other schema changes","slug":"other-schema-changes","depth":2,"children":[]},{"title":"Governance and process updates","slug":"governance-and-process-updates","depth":2,"children":[]},{"title":"Process changes","slug":"process-changes","depth":2,"children":[]},{"title":"Full changelog","slug":"full-changelog","depth":2,"children":[]}],"codeExamples":{}},"jsLinks":["/_mintlify/custom/mcp/e091f6927e8ff316/footer.js","/_mintlify/custom/mcp/539ab9218716af9b/version-warning.js"],"subdomain":"mcp","siteName":"Model Context Protocol","title":"Key Changes - Model Context Protocol","navMaps":{"firstHrefInVersion":{"Version 2026-07-28 (latest)":{"href":"/specification/2026-07-28/changelog","matchLevel":0},"Version 2025-11-25":{"href":"/specification/2025-11-25/changelog","matchLevel":1},"Version 2025-06-18":{"href":"/specification/2025-06-18/changelog","matchLevel":1},"Version 2025-03-26":{"href":"/specification/2025-03-26/changelog","matchLevel":1},"Version 2024-11-05":{"href":"/specification/2024-11-05","matchLevel":3},"Draft":{"href":"/specification/draft/changelog","matchLevel":1}},"firstHrefInLanguage":{}},"lastModified":"2026-10-30T18:11:50.221Z","originalFileLocation":"specification/2026-07-28/changelog.mdx"},"headHtml":"\u003cscript data-mint-head>(function(){var d=document.documentElement,p=null;if(!p){try{p=localStorage.getItem(\"isDarkMode\")}catch(e){}if(p==='true')p='dark';else if(p==='false')p='light';if(p!=='light'\u0026\u0026p!=='dark'\u0026\u0026p!=='system')p=\"system\"}var r=p==='system'?(matchMedia(\"(prefers-color-scheme: dark)\").matches?'dark':'light'):p;d.classList.remove(r==='dark'?'light':'dark');d.classList.add(r);d.setAttribute(\"data-theme-preference\",p)})();\u003c/script>\u003cmeta data-mint-head name=\"application-name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"generator\" content=\"Mintlify\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/android-chrome-192x192.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"apple-touch-icon\" type=\"image/png\" sizes=\"180x180\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/apple-touch-icon.png\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-16x16.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-32x32.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon.ico\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/android-chrome-192x192.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-16x16.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-32x32.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon.ico\" media=\"(prefers-color-scheme: dark)\">\u003cmeta data-mint-head property=\"og:title\" content=\"Key Changes - Model Context Protocol\">\u003cmeta data-mint-head property=\"og:site_name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head property=\"og:url\" content=\"https://modelcontextprotocol.io/specification/2026-07-28/changelog\">\u003cmeta data-mint-head property=\"og:type\" content=\"website\">\u003cmeta data-mint-head property=\"og:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head property=\"og:image:width\" content=\"1200\">\u003cmeta data-mint-head property=\"og:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"twitter:card\" content=\"summary_large_image\">\u003cmeta data-mint-head name=\"twitter:title\" content=\"Key Changes - Model Context Protocol\">\u003cmeta data-mint-head name=\"twitter:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head name=\"twitter:image:width\" content=\"1200\">\u003cmeta data-mint-head name=\"twitter:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"msapplication-config\" content=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/browserconfig.xml\">\u003cmeta data-mint-head name=\"apple-mobile-web-app-title\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"msapplication-TileColor\" content=\"#09090b\">\u003clink data-mint-head rel=\"canonical\" href=\"https://modelcontextprotocol.io/specification/2026-07-28/changelog\">\u003clink data-mint-head rel=\"alternate\" type=\"application/xml\" href=\"/sitemap.xml\">\u003clink data-mint-head rel=\"alternate\" type=\"text/markdown\" href=\"/specification/2026-07-28/changelog.md\">\u003cscript data-mint-head type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"@id\":\"https://modelcontextprotocol.io/#organization\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"logo\":{\"@type\":\"ImageObject\",\"url\":\"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499\"}},{\"@type\":\"WebSite\",\"@id\":\"https://modelcontextprotocol.io#website\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"}},{\"@type\":\"WebPage\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/changelog#webpage\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/changelog\",\"name\":\"Key Changes\",\"dateModified\":\"2026-10-30T18:11:50.221Z\",\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}},{\"@type\":[\"Article\",\"TechArticle\"],\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/changelog#article\",\"headline\":\"Key Changes\",\"name\":\"Key Changes\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/changelog\",\"mainEntityOfPage\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/changelog#webpage\"},\"image\":\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\",\"dateModified\":\"2026-10-30T18:11:50.221Z\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"},\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}}]}\u003c/script>","siteName":"Model Context Protocol","nav":{"global":null,"tabs":[{"tab":"Documentation","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"group":"Get started","pages":[{"title":"What is the Model Context Protocol (MCP)?","sidebarTitle":"What is MCP?","href":"/docs/2026-07-28/getting-started/intro"}]},{"group":"About MCP","pages":[{"title":"Architecture overview","sidebarTitle":"Architecture","href":"/docs/2026-07-28/learn/architecture"},{"title":"Understanding MCP servers","sidebarTitle":"Servers","href":"/docs/2026-07-28/learn/server-concepts"},{"title":"Understanding MCP clients","sidebarTitle":"Clients","href":"/docs/2026-07-28/learn/client-concepts"},{"title":"Versioning","href":"/docs/2026-07-28/learn/versioning"}]},{"group":"Develop with MCP","pages":[{"title":"Connect to local MCP servers","href":"/docs/2026-07-28/develop/connect-local-servers"},{"title":"Connect to remote MCP Servers","href":"/docs/2026-07-28/develop/connect-remote-servers"},{"title":"Build with Agent Skills","href":"/docs/2026-07-28/develop/build-with-agent-skills"},{"title":"Build an MCP server","href":"/docs/2026-07-28/develop/build-server"},{"group":"Clients","pages":[{"title":"Build an MCP client","href":"/docs/2026-07-28/develop/build-client"},{"title":"Client Best Practices","href":"/docs/2026-07-28/develop/clients/client-best-practices"}]},{"title":"SDKs","href":"/docs/2026-07-28/sdk"},{"group":"Security","pages":[{"title":"Understanding Authorization in MCP","href":"/docs/2026-07-28/tutorials/security/authorization"},{"title":"Security Best Practices","href":"/docs/2026-07-28/tutorials/security/security_best_practices"},{"title":"Local Server Security","href":"/docs/2026-07-28/tutorials/security/local-server-security"}]}]},{"group":"Developer tools","pages":[{"group":"Inspector","pages":[{"title":"MCP Inspector","href":"/docs/2026-07-28/tools/inspector"},{"title":"Web client","href":"/docs/2026-07-28/tools/inspector/web"},{"title":"CLI client","href":"/docs/2026-07-28/tools/inspector/cli"},{"title":"TUI client","href":"/docs/2026-07-28/tools/inspector/tui"},{"title":"mcpdo connection client","href":"/docs/2026-07-28/tools/inspector/mcpdo"},{"title":"Configuration and flags","href":"/docs/2026-07-28/tools/inspector/configuration"},{"title":"Authorization","href":"/docs/2026-07-28/tools/inspector/authorization"},{"title":"Protocol eras","href":"/docs/2026-07-28/tools/inspector/protocol-eras"},{"title":"Recipes","href":"/docs/2026-07-28/tools/inspector/recipes"},{"title":"Security","href":"/docs/2026-07-28/tools/inspector/security"}]},{"title":"Debugging","href":"/docs/2026-07-28/tools/debugging"}]},{"group":"Examples","pages":[{"title":"Example Servers","href":"/examples"}]}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/docs/2025-11-25/getting-started/intro"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/docs/2025-06-18/getting-started/intro"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/docs/2025-03-26/getting-started/intro"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/docs/2024-11-05/getting-started/intro"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/docs/draft/getting-started/intro"}]}]},{"tab":"Specification","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"title":"Specification","description":null,"href":"/specification/2026-07-28"},{"title":"Key Changes","href":"/specification/2026-07-28/changelog"},{"title":"Deprecated Features","description":null,"href":"/specification/2026-07-28/deprecated"},{"title":"Architecture","href":"/specification/2026-07-28/architecture/index"},{"group":"Base Protocol","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/index"},{"title":"Versioning and Compatibility","href":"/specification/2026-07-28/basic/versioning"},{"group":"Message Patterns","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/patterns/index"},{"title":"Multi Round-Trip Requests","href":"/specification/2026-07-28/basic/patterns/mrtr"},{"title":"Subscriptions","href":"/specification/2026-07-28/basic/patterns/subscriptions"},{"title":"Cancellation","href":"/specification/2026-07-28/basic/patterns/cancellation"},{"title":"Progress","href":"/specification/2026-07-28/basic/patterns/progress"}]},{"group":"Transports","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/transports/index"},{"title":"stdio","href":"/specification/2026-07-28/basic/transports/stdio"},{"title":"Streamable HTTP","href":"/specification/2026-07-28/basic/transports/streamable-http"}]},{"group":"Authorization","pages":[{"title":"Authorization","sidebarTitle":"Overview","href":"/specification/2026-07-28/basic/authorization/index"},{"title":"Authorization Server Discovery","href":"/specification/2026-07-28/basic/authorization/authorization-server-discovery"},{"title":"Client Registration","href":"/specification/2026-07-28/basic/authorization/client-registration"},{"title":"Authorization Security Considerations","sidebarTitle":"Security Considerations","href":"/specification/2026-07-28/basic/authorization/security-considerations"}]}]},{"group":"Client Features","pages":[{"title":"Roots","href":"/specification/2026-07-28/client/roots"},{"title":"Sampling","href":"/specification/2026-07-28/client/sampling"},{"title":"Elicitation","href":"/specification/2026-07-28/client/elicitation"}]},{"group":"Server Features","pages":[{"title":"Overview","href":"/specification/2026-07-28/server/index"},{"title":"Discovery","href":"/specification/2026-07-28/server/discover"},{"title":"Prompts","href":"/specification/2026-07-28/server/prompts"},{"title":"Resources","href":"/specification/2026-07-28/server/resources"},{"title":"Tools","href":"/specification/2026-07-28/server/tools"},{"group":"Utilities","pages":[{"title":"Caching","href":"/specification/2026-07-28/server/utilities/caching"},{"title":"Completion","href":"/specification/2026-07-28/server/utilities/completion"},{"title":"Logging","href":"/specification/2026-07-28/server/utilities/logging"},{"title":"Pagination","href":"/specification/2026-07-28/server/utilities/pagination"}]}]},{"title":"Schema Reference","href":"/specification/2026-07-28/schema"}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/specification/2025-11-25/changelog"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/specification/2025-06-18/changelog"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/specification/2025-03-26/changelog"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/specification/2024-11-05"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/specification/draft/changelog"}]}]},{"tab":"Extensions","pages":[{"title":"Extensions","href":"/extensions/overview"}]},{"tab":"Registry","pages":[{"title":"Registry","href":"/registry/about"}]},{"tab":"SEPs","pages":[{"title":"SEPs","href":"/seps"}]},{"tab":"Community","pages":[{"title":"Community","href":"/community/contributing"}]}]},"basePath":"","title":"Key Changes - Model Context Protocol","buildId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","deploymentId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","dynamics":[],"chunks":[]}

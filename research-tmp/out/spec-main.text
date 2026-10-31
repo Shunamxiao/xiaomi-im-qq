@@ -1,0 +1,204 @@
+Specification - Model Context Protocol
+Documentation Index
+Fetch the complete documentation index at:
+/llms.txt
+Use this file to discover all available pages before exploring further.
+Skip to main content
+Assistant
+Responses are generated using AI and may contain mistakes.
+Model Context Protocol
+ home page
+Version 2026-07-28 (latest)
+Search...
+⌘
+K
+Ask Assistant
+⌘
+I
+Blog
+GitHub
+Discord
+Search...
+Navigation
+Specification
+Documentation
+Specification
+Extensions
+Registry
+SEPs
+Community
+Specification
+Key Changes
+Deprecated Features
+Architecture
+Base Protocol
+Overview
+Versioning and Compatibility
+Message Patterns
+Transports
+Authorization
+Client Features
+Roots
+Sampling
+Elicitation
+Server Features
+Overview
+Discovery
+Prompts
+Resources
+Tools
+Utilities
+Schema Reference
+On this page
+Back to top
+Overview
+Key Details
+Base Protocol
+Features
+Additional Utilities
+Extensions
+Security and Trust & Safety
+Key Principles
+Implementation Guidelines
+Learn More
+Specification
+Copy page
+Copy page
+Copy page
+Copy page
+Model Context Protocol
+ (MCP) is an open protocol that
+enables seamless integration between LLM applications and external data sources and
+tools. Whether you’re building an AI-powered IDE, enhancing a chat interface, or creating
+custom AI workflows, MCP provides a standardized way to connect LLMs with the context
+they need.
+This specification defines the authoritative protocol requirements, based on the
+TypeScript schema in
+schema.ts
+.
+For implementation guides and examples, visit
+modelcontextprotocol.io
+.
+The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD
+NOT”, “RECOMMENDED”, “NOT RECOMMENDED”, “MAY”, and “OPTIONAL” in this document are to be
+interpreted as described in 
+BCP 14
+[
+RFC2119
+]
+[
+RFC8174
+] when, and only when, they
+appear in all capitals, as shown here.
+​
+Overview
+MCP provides a standardized way for applications to:
+Share contextual information with language models
+Expose tools and capabilities to AI systems
+Build composable integrations and workflows
+The protocol uses 
+JSON-RPC
+ 2.0 messages to establish
+communication between:
+Hosts
+: LLM applications that initiate connections
+Clients
+: Connectors within the host application
+Servers
+: Services that provide context and capabilities
+MCP takes some inspiration from the
+Language Server Protocol
+, which
+standardizes how to add support for programming languages across a whole ecosystem of
+development tools. In a similar way, MCP standardizes how to integrate additional context
+and tools into the ecosystem of AI applications.
+​
+Key Details
+​
+Base Protocol
+JSON-RPC
+ message format
+Stateless, self-contained requests
+Per-request capability negotiation
+​
+Features
+Servers offer any of the following features to clients:
+Resources
+: Context and data, for the user or the AI model to use
+Prompts
+: Templated messages and workflows for users
+Tools
+: Functions for the AI model to execute
+Clients may offer the following features to servers:
+Elicitation
+: Server-initiated requests for additional information from users
+​
+Additional Utilities
+Configuration
+Progress tracking
+Cancellation
+Error reporting
+​
+Extensions
+Beyond the core protocol, MCP defines optional 
+extensions
+that add modular, specialized, or experimental functionality. Extensions
+are always opt-in and require explicit support from both client and server, negotiated
+during initialization. Notable extensions include:
+Tasks
+: Asynchronous execution of long-running
+operations, with polling, mid-flight input, and durable handles
+Skills over MCP
+: Rich, structured
+instructions for agent workflows, discovered and consumed through MCP
+MCP Apps
+: Interactive UI elements (charts, forms,
+video players) rendered inline within conversations
+​
+Security and Trust & Safety
+The Model Context Protocol enables powerful capabilities through arbitrary data access
+and code execution paths. With this power comes important security and trust
+considerations that all implementors must carefully address.
+​
+Key Principles
+User Consent and Control
+Users must explicitly consent to and understand all data access and operations
+Users must retain control over what data is shared and what actions are taken
+Implementors should provide clear UIs for reviewing and authorizing activities
+Data Privacy
+Hosts must obtain explicit user consent before exposing user data to servers
+Hosts must not transmit resource data elsewhere without user consent
+User data should be protected with appropriate access controls
+Tool Safety
+Tools represent arbitrary code execution and must be treated with appropriate
+caution.
+In particular, descriptions of tool behavior such as annotations should be
+considered untrusted, unless obtained from a trusted server.
+Hosts must obtain explicit user consent before invoking any tool
+Users should understand what each tool does before authorizing its use
+​
+Implementation Guidelines
+While MCP itself cannot enforce these security principles at the protocol level,
+implementors 
+SHOULD
+:
+Build robust consent and authorization flows into their applications
+Provide clear documentation of security implications
+Implement appropriate access controls and data protections
+Follow security best practices in their integrations
+Consider privacy implications in their feature designs
+​
+Learn More
+Explore the detailed specification for each protocol component:
+Architecture
+Base Protocol
+Server Features
+Client Features
+Contributing
+Was this page helpful?
+Yes
+No
+Key Changes
+github
+discord
+{"docsConfig":{"theme":"mint","$schema":"https://mintlify.com/docs.json","name":"Model Context Protocol","colors":{"primary":"#09090b","light":"#FAFAFA","dark":"#09090b"},"logo":{"light":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499","dark":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/dark.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=1227cb7feb8344f9f6288c6b5b0a6d80"},"favicon":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/favicon.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=e419be76252c1cb0a6924602b9de428f","navbar":{"links":[{"href":"https://blog.modelcontextprotocol.io","label":"Blog"},{"href":"https://github.com/modelcontextprotocol","label":"GitHub"},{"href":"https://discord.gg/6CSzBmMkjX","label":"Discord"}]},"footer":{"socials":{"github":"https://github.com/modelcontextprotocol","discord":"https://discord.gg/6CSzBmMkjX"}},"seo":{"metatags":{"og:image":"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png"},"indexing":"navigable"},"contextual":{"options":["copy","view"],"display":"header"},"styling":{"latex":false},"navigation":{"pages":[]}},"deployment":{"deploymentMetadataValue":{"subdomain":"mcp","hasAudioNarration":false,"actualSubdomain":"mcp","customDomains":["modelcontextprotocol.io","modelcontextprotocol.net","modelcontextprotocol.org"],"gitSource":{"type":"github","owner":"modelcontextprotocol","repo":"modelcontextprotocol","deployBranch":"main","contentDirectory":"docs","isPrivate":true,"mountPath":"","label":""},"chroma":{"liveDeploymentHistoryId":"6ae5a287f146f7c5c1de2206","collectionId":"0747fc7a-5cbf-48b3-9c5a-a6467bdc1cd5","schemaVersion":"v3","latestBuiltDeploymentHistoryId":"6ae5a287f146f7c5c1de2206"},"feedback":{"thumbs":true},"entitlements":{"AI_CHAT":{"status":"ENABLED"},"REMOVE_BRANDING":{"status":"ENABLED"},"CONTEXTUAL_FEEDBACK":{"status":"ENABLED"},"CODE_SNIPPET_FEEDBACK":{"status":"ENABLED"},"WEB_MCP":{"status":"ENABLED"},"NARRATION":{"status":"ENABLED"}},"buildId":"6ae5a287f146f7c5c1de2206","clientVersion":"0.0.4043","searchFilterCounts":[{"language":"default","tag":"Specification","count":142},{"language":"default","tag":"Documentation","count":117},{"language":"default","tag":"Base Protocol","count":57},{"language":"default","tag":"Develop with MCP","count":56},{"language":"default","tag":"SEPs","count":46},{"language":"default","tag":"Server Features","count":46},{"language":"default","tag":"Final","count":44},{"language":"default","tag":"Community","count":34},{"language":"default","tag":"Utilities","count":33},{"language":"default","tag":"Developer tools","count":30}]},"assistantConfig":{},"basePath":"","hasChatPermissions":true,"hasWebMcpPermissions":true,"toggles":[{"name":"kill-isr","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-mintlify-slack","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-integrations-settings","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-pr-grouping","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"custom-prefix","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"analytics-v7","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"user-flows-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"no-publish-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-onboarding","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"llms-txt-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving-live","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"stripTemperatureMiddleware","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"support-platform-pylon-zendesk","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"instant-rollback","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications-server","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-fable","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fixed-ai-action-pricing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automation-resolve-merge-conflict","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"scoped-publishing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"mintql","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"page-level-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"editor-version-history-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-page-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"full-page-search","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workspace-projects","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"assistant-v5","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"byok-sep-25","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fork-pr-previews","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"revalidation-jwt","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"vite-origin","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-updated-9-15","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-sso-scim","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"hobby-abuse-scan","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"dashboard-inbox","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-signup","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"turbopuffer-dual-write","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-enabled","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"approve-review-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"sso-setup-deadline-banner","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false}],"googleFontsInlined":false},"customCss":[{"filePath":"style.css","content":"#content-area{--font-mono:var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace}#enable-section-numbers,#schema-reference{display:none}body:has(#schema-reference){--mt-md:0.5rem;--mt-lg:1rem;--mt-xl:1.5rem}#footer{flex-wrap:wrap;row-gap:1.5rem}#lf-copyright{flex:1 1 32rem;min-width:0;text-align:center;font-size:.875rem;color:rgb(var(--gray-500));line-height:1.5}"}],"page":{"pagePath":"specification/2026-07-28","slug":"/specification/2026-07-28","pageMetadata":{"title":"Specification","description":null,"href":"/specification/2026-07-28/index"},"pageType":"default","mdx":{"mdxSource":{"compiledSource":"\"use strict\";const{Fragment:_Fragment,jsx:_jsx,jsxs:_jsxs}=arguments[0];const{useMDXComponents:_provideComponents}=arguments[0];function _createMdxContent(props){const _components={a:`a`,li:`li`,ol:`ol`,p:`p`,strong:`strong`,ul:`ul`,..._provideComponents(),...props.components},{Card,CardGroup,Heading}=_components;if(!Card)_missingMdxReference(`Card`,true);if(!CardGroup)_missingMdxReference(`CardGroup`,true);if(!Heading)_missingMdxReference(`Heading`,true);return _jsxs(_Fragment,{children:[_jsx(`div`,{id:`enable-section-numbers`}),`\n`,_jsxs(_components.p,{children:[_jsx(_components.a,{href:`https://modelcontextprotocol.io`,children:`Model Context Protocol`}),` (MCP) is an open protocol that\nenables seamless integration between LLM applications and external data sources and\ntools. Whether you’re building an AI-powered IDE, enhancing a chat interface, or creating\ncustom AI workflows, MCP provides a standardized way to connect LLMs with the context\nthey need.`]}),`\n`,_jsxs(_components.p,{children:[`This specification defines the authoritative protocol requirements, based on the\nTypeScript schema in\n`,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/specification/blob/main/schema/2026-07-28/schema.ts`,children:`schema.ts`}),`.`]}),`\n`,_jsxs(_components.p,{children:[`For implementation guides and examples, visit\n`,_jsx(_components.a,{href:`https://modelcontextprotocol.io`,children:`modelcontextprotocol.io`}),`.`]}),`\n`,_jsxs(_components.p,{children:[`The key words “MUST”, “MUST NOT”, “REQUIRED”, “SHALL”, “SHALL NOT”, “SHOULD”, “SHOULD\nNOT”, “RECOMMENDED”, “NOT RECOMMENDED”, “MAY”, and “OPTIONAL” in this document are to be\ninterpreted as described in `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/bcp14`,children:`BCP 14`}),`\n[`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc2119`,children:`RFC2119`}),`]\n[`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc8174`,children:`RFC8174`}),`] when, and only when, they\nappear in all capitals, as shown here.`]}),`\n`,_jsx(Heading,{level:`2`,id:`overview`,children:`Overview`}),`\n`,_jsx(_components.p,{children:`MCP provides a standardized way for applications to:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`Share contextual information with language models`}),`\n`,_jsx(_components.li,{children:`Expose tools and capabilities to AI systems`}),`\n`,_jsx(_components.li,{children:`Build composable integrations and workflows`}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`The protocol uses `,_jsx(_components.a,{href:`https://www.jsonrpc.org/`,children:`JSON-RPC`}),` 2.0 messages to establish\ncommunication between:`]}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Hosts`}),`: LLM applications that initiate connections`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Clients`}),`: Connectors within the host application`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Servers`}),`: Services that provide context and capabilities`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`MCP takes some inspiration from the\n`,_jsx(_components.a,{href:`https://microsoft.github.io/language-server-protocol/`,children:`Language Server Protocol`}),`, which\nstandardizes how to add support for programming languages across a whole ecosystem of\ndevelopment tools. In a similar way, MCP standardizes how to integrate additional context\nand tools into the ecosystem of AI applications.`]}),`\n`,_jsx(Heading,{level:`2`,id:`key-details`,children:`Key Details`}),`\n`,_jsx(Heading,{level:`3`,id:`base-protocol`,children:`Base Protocol`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.a,{href:`https://www.jsonrpc.org/`,children:`JSON-RPC`}),` message format`]}),`\n`,_jsx(_components.li,{children:`Stateless, self-contained requests`}),`\n`,_jsx(_components.li,{children:`Per-request capability negotiation`}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`features`,children:`Features`}),`\n`,_jsx(_components.p,{children:`Servers offer any of the following features to clients:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Resources`}),`: Context and data, for the user or the AI model to use`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Prompts`}),`: Templated messages and workflows for users`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Tools`}),`: Functions for the AI model to execute`]}),`\n`]}),`\n`,_jsx(_components.p,{children:`Clients may offer the following features to servers:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Elicitation`}),`: Server-initiated requests for additional information from users`]}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`additional-utilities`,children:`Additional Utilities`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`Configuration`}),`\n`,_jsx(_components.li,{children:`Progress tracking`}),`\n`,_jsx(_components.li,{children:`Cancellation`}),`\n`,_jsx(_components.li,{children:`Error reporting`}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`extensions`,children:`Extensions`}),`\n`,_jsxs(_components.p,{children:[`Beyond the core protocol, MCP defines optional `,_jsx(_components.a,{href:`/extensions/overview`,children:`extensions`}),`\nthat add modular, specialized, or experimental functionality. Extensions\nare always opt-in and require explicit support from both client and server, negotiated\nduring initialization. Notable extensions include:`]}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:_jsx(_components.a,{href:`/extensions/tasks/overview`,children:`Tasks`})}),`: Asynchronous execution of long-running\noperations, with polling, mid-flight input, and durable handles`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:_jsx(_components.a,{href:`/community/working-groups/skills-over-mcp`,children:`Skills over MCP`})}),`: Rich, structured\ninstructions for agent workflows, discovered and consumed through MCP`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:_jsx(_components.a,{href:`/extensions/apps/overview`,children:`MCP Apps`})}),`: Interactive UI elements (charts, forms,\nvideo players) rendered inline within conversations`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`security-and-trust-\u0026-safety`,children:`Security and Trust \u0026 Safety`}),`\n`,_jsx(_components.p,{children:`The Model Context Protocol enables powerful capabilities through arbitrary data access\nand code execution paths. With this power comes important security and trust\nconsiderations that all implementors must carefully address.`}),`\n`,_jsx(Heading,{level:`3`,id:`key-principles`,children:`Key Principles`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`User Consent and Control`})}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`Users must explicitly consent to and understand all data access and operations`}),`\n`,_jsx(_components.li,{children:`Users must retain control over what data is shared and what actions are taken`}),`\n`,_jsx(_components.li,{children:`Implementors should provide clear UIs for reviewing and authorizing activities`}),`\n`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Data Privacy`})}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`Hosts must obtain explicit user consent before exposing user data to servers`}),`\n`,_jsx(_components.li,{children:`Hosts must not transmit resource data elsewhere without user consent`}),`\n`,_jsx(_components.li,{children:`User data should be protected with appropriate access controls`}),`\n`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsx(_components.p,{children:_jsx(_components.strong,{children:`Tool Safety`})}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[`Tools represent arbitrary code execution and must be treated with appropriate\ncaution.`,`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:`In particular, descriptions of tool behavior such as annotations should be\nconsidered untrusted, unless obtained from a trusted server.`}),`\n`]}),`\n`]}),`\n`,_jsx(_components.li,{children:`Hosts must obtain explicit user consent before invoking any tool`}),`\n`,_jsx(_components.li,{children:`Users should understand what each tool does before authorizing its use`}),`\n`]}),`\n`]}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`implementation-guidelines`,children:`Implementation Guidelines`}),`\n`,_jsxs(_components.p,{children:[`While MCP itself cannot enforce these security principles at the protocol level,\nimplementors `,_jsx(_components.strong,{children:`SHOULD`}),`:`]}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsx(_components.li,{children:`Build robust consent and authorization flows into their applications`}),`\n`,_jsx(_components.li,{children:`Provide clear documentation of security implications`}),`\n`,_jsx(_components.li,{children:`Implement appropriate access controls and data protections`}),`\n`,_jsx(_components.li,{children:`Follow security best practices in their integrations`}),`\n`,_jsx(_components.li,{children:`Consider privacy implications in their feature designs`}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`learn-more`,children:`Learn More`}),`\n`,_jsx(_components.p,{children:`Explore the detailed specification for each protocol component:`}),`\n`,_jsxs(CardGroup,{cols:5,children:[_jsx(Card,{title:`Architecture`,icon:`sitemap`,href:`/specification/2026-07-28/architecture`}),_jsx(Card,{title:`Base Protocol`,icon:`code`,href:`/specification/2026-07-28/basic`}),_jsx(Card,{title:`Server Features`,icon:`server`,href:`/specification/2026-07-28/server`}),_jsx(Card,{title:`Client Features`,icon:`user`,href:`/specification/2026-07-28/client`}),_jsx(Card,{title:`Contributing`,icon:`pencil`,href:`/community/contributing`})]})]})}function MDXContent(props={}){const{wrapper:MDXLayout}={..._provideComponents(),...props.components};return MDXLayout?_jsx(MDXLayout,{...props,children:_jsx(_createMdxContent,{...props})}):_createMdxContent(props)}return{default:MDXContent};function _missingMdxReference(id,component){throw new Error(`Expected `+(component?`component`:`object`)+\" `\"+id+\"` to be defined: you likely forgot to import, pass, or provide it.\")}","frontmatter":{},"scope":{"config":{},"pageMetadata":{"title":"Specification","description":null,"href":"/specification/2026-07-28/index"}}},"mdxSourceWithNoJs":null},"mdxExtracts":{"tableOfContents":[{"title":"Overview","slug":"overview","depth":2,"children":[]},{"title":"Key Details","slug":"key-details","depth":2,"children":[{"title":"Base Protocol","slug":"base-protocol","depth":3,"children":[]},{"title":"Features","slug":"features","depth":3,"children":[]},{"title":"Additional Utilities","slug":"additional-utilities","depth":3,"children":[]},{"title":"Extensions","slug":"extensions","depth":3,"children":[]}]},{"title":"Security and Trust \u0026 Safety","slug":"security-and-trust-\u0026-safety","depth":2,"children":[{"title":"Key Principles","slug":"key-principles","depth":3,"children":[]},{"title":"Implementation Guidelines","slug":"implementation-guidelines","depth":3,"children":[]}]},{"title":"Learn More","slug":"learn-more","depth":2,"children":[]}],"codeExamples":{}},"jsLinks":["/_mintlify/custom/mcp/e091f6927e8ff316/footer.js","/_mintlify/custom/mcp/539ab9218716af9b/version-warning.js"],"subdomain":"mcp","siteName":"Model Context Protocol","title":"Specification - Model Context Protocol","navMaps":{"firstHrefInVersion":{"Version 2026-07-28 (latest)":{"href":"/specification/2026-07-28","matchLevel":0},"Version 2025-11-25":{"href":"/specification/2025-11-25","matchLevel":3},"Version 2025-06-18":{"href":"/specification/2025-06-18","matchLevel":3},"Version 2025-03-26":{"href":"/specification/2025-03-26","matchLevel":3},"Version 2024-11-05":{"href":"/specification/2024-11-05","matchLevel":3},"Draft":{"href":"/specification/draft","matchLevel":3}},"firstHrefInLanguage":{}},"lastModified":"2026-10-30T18:11:50.202Z","originalFileLocation":"specification/2026-07-28/index.mdx"},"headHtml":"\u003cscript data-mint-head>(function(){var d=document.documentElement,p=null;if(!p){try{p=localStorage.getItem(\"isDarkMode\")}catch(e){}if(p==='true')p='dark';else if(p==='false')p='light';if(p!=='light'\u0026\u0026p!=='dark'\u0026\u0026p!=='system')p=\"system\"}var r=p==='system'?(matchMedia(\"(prefers-color-scheme: dark)\").matches?'dark':'light'):p;d.classList.remove(r==='dark'?'light':'dark');d.classList.add(r);d.setAttribute(\"data-theme-preference\",p)})();\u003c/script>\u003cmeta data-mint-head name=\"application-name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"generator\" content=\"Mintlify\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/android-chrome-192x192.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"apple-touch-icon\" type=\"image/png\" sizes=\"180x180\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/apple-touch-icon.png\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-16x16.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-32x32.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon.ico\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/android-chrome-192x192.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-16x16.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-32x32.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon.ico\" media=\"(prefers-color-scheme: dark)\">\u003cmeta data-mint-head property=\"og:title\" content=\"Specification - Model Context Protocol\">\u003cmeta data-mint-head property=\"og:site_name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head property=\"og:url\" content=\"https://modelcontextprotocol.io/specification/2026-07-28\">\u003cmeta data-mint-head property=\"og:type\" content=\"website\">\u003cmeta data-mint-head property=\"og:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head property=\"og:image:width\" content=\"1200\">\u003cmeta data-mint-head property=\"og:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"twitter:card\" content=\"summary_large_image\">\u003cmeta data-mint-head name=\"twitter:title\" content=\"Specification - Model Context Protocol\">\u003cmeta data-mint-head name=\"twitter:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head name=\"twitter:image:width\" content=\"1200\">\u003cmeta data-mint-head name=\"twitter:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"msapplication-config\" content=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/browserconfig.xml\">\u003cmeta data-mint-head name=\"apple-mobile-web-app-title\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"msapplication-TileColor\" content=\"#09090b\">\u003clink data-mint-head rel=\"canonical\" href=\"https://modelcontextprotocol.io/specification/2026-07-28\">\u003clink data-mint-head rel=\"alternate\" type=\"application/xml\" href=\"/sitemap.xml\">\u003clink data-mint-head rel=\"alternate\" type=\"text/markdown\" href=\"/specification/2026-07-28.md\">\u003cscript data-mint-head type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"@id\":\"https://modelcontextprotocol.io/#organization\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"logo\":{\"@type\":\"ImageObject\",\"url\":\"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499\"}},{\"@type\":\"WebSite\",\"@id\":\"https://modelcontextprotocol.io#website\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"}},{\"@type\":\"WebPage\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28#webpage\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28\",\"name\":\"Specification\",\"dateModified\":\"2026-10-30T18:11:50.202Z\",\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}},{\"@type\":[\"Article\",\"TechArticle\"],\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28#article\",\"headline\":\"Specification\",\"name\":\"Specification\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28\",\"mainEntityOfPage\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28#webpage\"},\"image\":\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\",\"dateModified\":\"2026-10-30T18:11:50.202Z\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"},\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}}]}\u003c/script>","siteName":"Model Context Protocol","nav":{"global":null,"tabs":[{"tab":"Documentation","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"group":"Get started","pages":[{"title":"What is the Model Context Protocol (MCP)?","sidebarTitle":"What is MCP?","href":"/docs/2026-07-28/getting-started/intro"}]},{"group":"About MCP","pages":[{"title":"Architecture overview","sidebarTitle":"Architecture","href":"/docs/2026-07-28/learn/architecture"},{"title":"Understanding MCP servers","sidebarTitle":"Servers","href":"/docs/2026-07-28/learn/server-concepts"},{"title":"Understanding MCP clients","sidebarTitle":"Clients","href":"/docs/2026-07-28/learn/client-concepts"},{"title":"Versioning","href":"/docs/2026-07-28/learn/versioning"}]},{"group":"Develop with MCP","pages":[{"title":"Connect to local MCP servers","href":"/docs/2026-07-28/develop/connect-local-servers"},{"title":"Connect to remote MCP Servers","href":"/docs/2026-07-28/develop/connect-remote-servers"},{"title":"Build with Agent Skills","href":"/docs/2026-07-28/develop/build-with-agent-skills"},{"title":"Build an MCP server","href":"/docs/2026-07-28/develop/build-server"},{"group":"Clients","pages":[{"title":"Build an MCP client","href":"/docs/2026-07-28/develop/build-client"},{"title":"Client Best Practices","href":"/docs/2026-07-28/develop/clients/client-best-practices"}]},{"title":"SDKs","href":"/docs/2026-07-28/sdk"},{"group":"Security","pages":[{"title":"Understanding Authorization in MCP","href":"/docs/2026-07-28/tutorials/security/authorization"},{"title":"Security Best Practices","href":"/docs/2026-07-28/tutorials/security/security_best_practices"},{"title":"Local Server Security","href":"/docs/2026-07-28/tutorials/security/local-server-security"}]}]},{"group":"Developer tools","pages":[{"group":"Inspector","pages":[{"title":"MCP Inspector","href":"/docs/2026-07-28/tools/inspector"},{"title":"Web client","href":"/docs/2026-07-28/tools/inspector/web"},{"title":"CLI client","href":"/docs/2026-07-28/tools/inspector/cli"},{"title":"TUI client","href":"/docs/2026-07-28/tools/inspector/tui"},{"title":"mcpdo connection client","href":"/docs/2026-07-28/tools/inspector/mcpdo"},{"title":"Configuration and flags","href":"/docs/2026-07-28/tools/inspector/configuration"},{"title":"Authorization","href":"/docs/2026-07-28/tools/inspector/authorization"},{"title":"Protocol eras","href":"/docs/2026-07-28/tools/inspector/protocol-eras"},{"title":"Recipes","href":"/docs/2026-07-28/tools/inspector/recipes"},{"title":"Security","href":"/docs/2026-07-28/tools/inspector/security"}]},{"title":"Debugging","href":"/docs/2026-07-28/tools/debugging"}]},{"group":"Examples","pages":[{"title":"Example Servers","href":"/examples"}]}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/docs/2025-11-25/getting-started/intro"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/docs/2025-06-18/getting-started/intro"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/docs/2025-03-26/getting-started/intro"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/docs/2024-11-05/getting-started/intro"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/docs/draft/getting-started/intro"}]}]},{"tab":"Specification","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"title":"Specification","href":"/specification/2026-07-28"},{"title":"Key Changes","description":null,"href":"/specification/2026-07-28/changelog"},{"title":"Deprecated Features","href":"/specification/2026-07-28/deprecated"},{"title":"Architecture","href":"/specification/2026-07-28/architecture/index"},{"group":"Base Protocol","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/index"},{"title":"Versioning and Compatibility","href":"/specification/2026-07-28/basic/versioning"},{"group":"Message Patterns","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/patterns/index"},{"title":"Multi Round-Trip Requests","href":"/specification/2026-07-28/basic/patterns/mrtr"},{"title":"Subscriptions","href":"/specification/2026-07-28/basic/patterns/subscriptions"},{"title":"Cancellation","href":"/specification/2026-07-28/basic/patterns/cancellation"},{"title":"Progress","href":"/specification/2026-07-28/basic/patterns/progress"}]},{"group":"Transports","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/transports/index"},{"title":"stdio","href":"/specification/2026-07-28/basic/transports/stdio"},{"title":"Streamable HTTP","href":"/specification/2026-07-28/basic/transports/streamable-http"}]},{"group":"Authorization","pages":[{"title":"Authorization","sidebarTitle":"Overview","href":"/specification/2026-07-28/basic/authorization/index"},{"title":"Authorization Server Discovery","href":"/specification/2026-07-28/basic/authorization/authorization-server-discovery"},{"title":"Client Registration","href":"/specification/2026-07-28/basic/authorization/client-registration"},{"title":"Authorization Security Considerations","sidebarTitle":"Security Considerations","href":"/specification/2026-07-28/basic/authorization/security-considerations"}]}]},{"group":"Client Features","pages":[{"title":"Roots","href":"/specification/2026-07-28/client/roots"},{"title":"Sampling","href":"/specification/2026-07-28/client/sampling"},{"title":"Elicitation","href":"/specification/2026-07-28/client/elicitation"}]},{"group":"Server Features","pages":[{"title":"Overview","href":"/specification/2026-07-28/server/index"},{"title":"Discovery","href":"/specification/2026-07-28/server/discover"},{"title":"Prompts","href":"/specification/2026-07-28/server/prompts"},{"title":"Resources","href":"/specification/2026-07-28/server/resources"},{"title":"Tools","href":"/specification/2026-07-28/server/tools"},{"group":"Utilities","pages":[{"title":"Caching","href":"/specification/2026-07-28/server/utilities/caching"},{"title":"Completion","href":"/specification/2026-07-28/server/utilities/completion"},{"title":"Logging","href":"/specification/2026-07-28/server/utilities/logging"},{"title":"Pagination","href":"/specification/2026-07-28/server/utilities/pagination"}]}]},{"title":"Schema Reference","href":"/specification/2026-07-28/schema"}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/specification/2025-11-25"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/specification/2025-06-18"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/specification/2025-03-26"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/specification/2024-11-05"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/specification/draft"}]}]},{"tab":"Extensions","pages":[{"title":"Extensions","href":"/extensions/overview"}]},{"tab":"Registry","pages":[{"title":"Registry","href":"/registry/about"}]},{"tab":"SEPs","pages":[{"title":"SEPs","href":"/seps"}]},{"tab":"Community","pages":[{"title":"Community","href":"/community/contributing"}]}]},"basePath":"","title":"Specification - Model Context Protocol","buildId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","deploymentId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","dynamics":[],"chunks":[]}

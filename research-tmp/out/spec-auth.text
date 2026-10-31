@@ -1,0 +1,750 @@
+Authorization - Model Context Protocol
+Documentation Index
+Fetch the complete documentation index at:
+/llms.txt
+Use this file to discover all available pages before exploring further.
+Skip to main content
+Assistant
+Responses are generated using AI and may contain mistakes.
+Model Context Protocol
+ home page
+Version 2026-07-28 (latest)
+Search...
+⌘
+K
+Ask Assistant
+⌘
+I
+Blog
+GitHub
+Discord
+Search...
+Navigation
+Authorization
+Authorization
+Documentation
+Specification
+Extensions
+Registry
+SEPs
+Community
+Specification
+Key Changes
+Deprecated Features
+Architecture
+Base Protocol
+Overview
+Versioning and Compatibility
+Message Patterns
+Transports
+Authorization
+Overview
+Authorization Server Discovery
+Client Registration
+Security Considerations
+Client Features
+Roots
+Sampling
+Elicitation
+Server Features
+Overview
+Discovery
+Prompts
+Resources
+Tools
+Utilities
+Schema Reference
+On this page
+Back to top
+Introduction
+Purpose and Scope
+Protocol Requirements
+Standards Compliance
+Roles
+Overview
+Authorization Server Discovery
+Client Registration
+Scope Selection Strategy
+Authorization Flow Steps
+Authorization Response Validation
+Resource Parameter Implementation
+Canonical Server URI
+Access Token Usage
+Token Requirements
+Token Handling
+Refresh Tokens
+Error Handling
+Scope Challenge Handling
+Runtime Insufficient Scope Errors
+Step-Up Authorization Flow
+Security Considerations
+MCP Authorization Extensions
+Authorization
+Authorization
+Copy page
+Copy page
+Copy page
+Copy page
+​
+Introduction
+​
+Purpose and Scope
+The Model Context Protocol provides authorization capabilities at the transport level,
+enabling MCP clients to make requests to restricted MCP servers on behalf of resource
+owners. This specification defines the authorization flow for HTTP-based transports.
+​
+Protocol Requirements
+Authorization is 
+OPTIONAL
+ for MCP implementations. When supported:
+Implementations using an HTTP-based transport 
+SHOULD
+ conform to this specification.
+Implementations using an STDIO transport 
+SHOULD NOT
+ follow this specification, and
+instead retrieve credentials from the environment.
+Implementations using alternative transports 
+MUST
+ follow established security best
+practices for their protocol.
+​
+Standards Compliance
+This authorization mechanism is based on established specifications listed below, but
+implements a selected subset of their features to ensure security and interoperability
+while maintaining simplicity:
+OAuth 2.1 IETF DRAFT (
+draft-ietf-oauth-v2-1-13
+)
+OAuth 2.0 Bearer Token Usage
+(
+RFC6750
+)
+OAuth 2.0 Authorization Server Metadata
+(
+RFC8414
+)
+OAuth 2.0 Dynamic Client Registration Protocol
+(
+RFC7591
+)
+Resource Indicators for OAuth 2.0
+(
+RFC8707
+)
+OAuth 2.0 Protected Resource Metadata (
+RFC9728
+)
+OAuth 2.0 Authorization Server Issuer Identification (
+RFC9207
+)
+OAuth Client ID Metadata Documents (
+draft-ietf-oauth-client-id-metadata-document-00
+)
+OpenID Connect Discovery 1.0
+OpenID Connect Dynamic Client Registration 1.0 (
+OpenID Connect Registration
+)
+​
+Roles
+A protected 
+MCP server
+ acts as an 
+OAuth 2.1 resource server
+,
+capable of accepting and responding to protected resource requests using access tokens.
+An 
+MCP client
+ acts as an 
+OAuth 2.1 client
+,
+making protected resource requests on behalf of a resource owner.
+The 
+authorization server
+ is responsible for interacting with the user (if necessary) and issuing access tokens for use at the MCP server.
+The implementation details of the authorization server are beyond the scope of this specification. It may be hosted with the
+resource server or a separate entity. 
+Authorization Server Discovery
+specifies how an MCP server indicates the location of its corresponding authorization server to a client.
+​
+Overview
+Authorization servers 
+MUST
+ implement OAuth 2.1 with appropriate security
+measures for both confidential and public clients.
+Authorization servers and MCP clients 
+SHOULD
+ support 
+OAuth Client ID Metadata Documents
+(
+draft-ietf-oauth-client-id-metadata-document-00
+).
+Authorization servers and MCP clients 
+MAY
+ support the OAuth 2.0 Dynamic Client Registration
+Protocol (
+RFC7591
+). Note that
+Dynamic Client Registration
+is deprecated and retained for backwards compatibility with authorization servers that do not support Client ID Metadata Documents.
+MCP servers 
+MUST
+ implement OAuth 2.0 Protected Resource Metadata (
+RFC9728
+).
+MCP clients 
+MUST
+ use OAuth 2.0 Protected Resource Metadata for 
+authorization server discovery
+.
+MCP authorization servers 
+MUST
+ provide at least one of the following discovery mechanisms:
+OAuth 2.0 Authorization Server Metadata (
+RFC8414
+)
+OpenID Connect Discovery 1.0
+MCP clients 
+MUST
+ support both 
+discovery mechanisms
+ to obtain the information required to interact with the authorization server.
+​
+Authorization Server Discovery
+MCP servers advertise their associated authorization servers through OAuth 2.0 Protected
+Resource Metadata, and MCP clients determine authorization server endpoints and supported
+capabilities through authorization server metadata discovery. Implementations 
+MUST
+follow the normative discovery requirements defined in
+Authorization Server Discovery
+.
+​
+Client Registration
+Before initiating the authorization flow, MCP clients 
+MUST
+ obtain a client ID through
+one of three registration mechanisms: Client ID Metadata Documents, pre-registration, or
+Dynamic Client Registration, following the requirements and selection priority defined in
+Client Registration
+.
+​
+Scope Selection Strategy
+MCP servers 
+SHOULD
+ include a 
+scope
+ parameter in the 
+WWW-Authenticate
+ header as defined in
+RFC 6750 Section 3
+to indicate the scopes required for accessing the resource. This provides clients with immediate
+guidance on the appropriate scopes to request during authorization,
+following the principle of least privilege and preventing clients from requesting excessive permissions.
+The scopes included in the 
+WWW-Authenticate
+ challenge 
+MAY
+ match 
+scopes_supported
+, be a subset
+or superset of it, or an alternative collection that is neither a strict subset nor
+superset. Clients 
+MUST NOT
+ assume any particular set relationship between the challenged
+scope set and 
+scopes_supported
+. Clients 
+MUST
+ treat the scopes provided in the
+challenge as authoritative for the current operation. These scopes are required to
+satisfy the current request. When re-authorizing, clients 
+SHOULD
+ include these scopes
+alongside any previously granted scopes to avoid losing permissions needed for other operations
+(see 
+Step-Up Authorization Flow
+). Servers 
+SHOULD
+ strive for
+consistency in how they construct scope sets but they are not required to surface every dynamically
+issued scope through 
+scopes_supported
+.
+Example 401 response with scope guidance:
+HTTP
+/
+1.1
+ 401
+ Unauthorized
+WWW-Authenticate
+:
+ Bearer resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource",
+ scope="files:read"
+When implementing authorization flows, MCP clients 
+SHOULD
+ follow the principle of least privilege by requesting
+only the scopes necessary for their intended operations. During the initial authorization handshake, MCP clients
+SHOULD
+ follow this priority order for scope selection:
+Use 
+scope
+ parameter
+ from the initial 
+WWW-Authenticate
+ header in the 401 response, if provided
+If 
+scope
+ is not available
+, use all scopes defined in 
+scopes_supported
+ from the Protected Resource Metadata document, omitting the 
+scope
+ parameter if 
+scopes_supported
+ is undefined.
+The 
+scopes_supported
+ field is intended to represent the minimal set of scopes necessary
+for basic functionality (see 
+Scope Minimization
+),
+with additional scopes requested incrementally through the step-up authorization flow steps
+described in the 
+Scope Challenge Handling
+ section.
+​
+Authorization Flow Steps
+The registration step shown in the flow uses one of the mechanisms defined in
+Client Registration
+.
+The complete Authorization flow proceeds as follows:
+​
+Authorization Response Validation
+Before redirecting the user-agent, the client 
+MUST
+ record the 
+issuer
+ value from the selected authorization server’s validated metadata document (see 
+Authorization Server Metadata Discovery
+) and associate it with the same per-request record used to store the PKCE code verifier (and the 
+state
+ value, if used). The validation in this section depends on that recorded value being authentic; it provides no protection if the expected issuer was obtained from an unvalidated source.
+MCP authorization servers 
+SHOULD
+ include the 
+iss
+ parameter in authorization responses, including error responses, as defined in 
+RFC9207 Section 2
+. Authorization servers that include the 
+iss
+ parameter 
+MUST
+ advertise this by setting 
+authorization_response_iss_parameter_supported
+ to 
+true
+ in their metadata (
+RFC9207 Section 2.3
+).
+On receiving the authorization response, MCP clients 
+MUST
+ apply the validation in 
+RFC9207 Section 2.4
+ before transmitting the authorization code to any token endpoint:
+authorization_response_iss_parameter_supported
+iss
+ in response
+Client action
+true
+present
+Compare to the recorded issuer using simple string comparison (
+RFC3986 Section 6.2.1
+)
+true
+absent
+Reject the response
+false
+ or absent
+present
+Compare to the recorded issuer using simple string comparison (
+RFC3986 Section 6.2.1
+)
+false
+ or absent
+absent
+Proceed
+The third row applies the local-policy provision in 
+RFC9207 Section 2.4
+: this specification compares a present 
+iss
+ against the recorded issuer regardless of metadata advertisement, to accommodate authorization servers that emit 
+iss
+ before updating their metadata.
+A future revision of this specification is expected to upgrade authorization server inclusion of 
+iss
+ from 
+SHOULD
+ to 
+MUST
+. Implementers are encouraged to emit and validate 
+iss
+ now to ease that transition; client rejection behavior on 
+iss
+ absence will continue to be keyed on 
+authorization_response_iss_parameter_supported
+ until that revision defines the upgrade path.
+After decoding the 
+iss
+ value from the 
+application/x-www-form-urlencoded
+ response per 
+RFC 9207 Section 2.4
+, clients 
+MUST NOT
+ apply scheme or host case folding, default-port elision, trailing-slash, or percent-encoding normalization (
+RFC 3986 Sections 6.2.2-6.2.3
+) before comparison.
+This validation applies equally to error responses - on mismatch the client 
+MUST NOT
+ act on or display 
+error
+, 
+error_description
+, or 
+error_uri
+.
+​
+Resource Parameter Implementation
+MCP clients 
+MUST
+ implement Resource Indicators for OAuth 2.0 as defined in 
+RFC 8707
+to explicitly specify the target resource for which the token is being requested. The 
+resource
+ parameter:
+MUST
+ be included in both authorization requests and token requests.
+MUST
+ identify the MCP server that the client intends to use the token with.
+MUST
+ use the canonical URI of the MCP server as defined in 
+RFC 8707 Section 2
+.
+​
+Canonical Server URI
+For the purposes of this specification, the canonical URI of an MCP server is defined as the resource identifier as specified in
+RFC 8707 Section 2
+ and aligns with the 
+resource
+ parameter in
+RFC 9728
+.
+MCP clients 
+SHOULD
+ provide the most specific URI that they can for the MCP server they intend to access, following the guidance in 
+RFC 8707
+. While the canonical form uses lowercase scheme and host components, implementations 
+SHOULD
+ accept uppercase scheme and host components for robustness and interoperability.
+Examples of valid canonical URIs:
+https://mcp.example.com/mcp
+https://mcp.example.com
+https://mcp.example.com:8443
+https://mcp.example.com/server/mcp
+ (when path component is necessary to identify individual MCP server)
+Examples of invalid canonical URIs:
+mcp.example.com
+ (missing scheme)
+https://mcp.example.com#fragment
+ (contains fragment)
+Note:
+ While both 
+https://mcp.example.com/
+ (with trailing slash) and 
+https://mcp.example.com
+ (without trailing slash) are technically valid absolute URIs according to 
+RFC 3986
+, implementations 
+SHOULD
+ consistently use the form without the trailing slash for better interoperability unless the trailing slash is semantically significant for the specific resource.
+For example, if accessing an MCP server at 
+https://mcp.example.com
+, the authorization request would include:
+&resource=https%3A%2F%2Fmcp.example.com
+MCP clients 
+MUST
+ send this parameter regardless of whether authorization servers support it.
+​
+Access Token Usage
+​
+Token Requirements
+Access token handling when making requests to MCP servers 
+MUST
+ conform to the requirements defined in
+OAuth 2.1 Section 5 “Resource Requests”
+.
+Specifically:
+MCP client 
+MUST
+ use the Authorization request header field defined in
+OAuth 2.1 Section 5.1.1
+:
+Authorization: Bearer <access-token>
+Note that authorization 
+MUST
+ be included in every HTTP request from client to server.
+Access tokens 
+MUST NOT
+ be included in the URI query string
+Example request:
+GET
+ /mcp 
+HTTP
+/
+1.1
+Host
+:
+ mcp.example.com
+Authorization
+:
+ Bearer eyJhbGciOiJIUzI1NiIs...
+​
+Token Handling
+MCP servers, acting in their role as an OAuth 2.1 resource server, 
+MUST
+ validate access tokens as described in
+OAuth 2.1 Section 5.2
+.
+MCP servers 
+MUST
+ validate that access tokens were issued specifically for them as the intended audience,
+according to 
+RFC 8707 Section 2
+.
+If validation fails, servers 
+MUST
+ respond according to
+OAuth 2.1 Section 5.3
+error handling requirements. Invalid or expired tokens 
+MUST
+ receive a HTTP 401
+response.
+MCP clients 
+MUST NOT
+ send tokens to the MCP server other than ones issued by the MCP server’s authorization server.
+MCP servers 
+MUST
+ only accept tokens that are valid for use with their
+own resources.
+MCP servers 
+MUST NOT
+ accept or transit any other tokens.
+​
+Refresh Tokens
+This section provides guidance for MCP Clients and MCP Servers when handling or issuing
+refresh tokens for both OAuth and OpenID Connect.
+MCP Clients
+ that desire refresh tokens:
+MUST
+ keep refresh tokens confidential in transit and storage as specified in 
+OAuth 2.1 Section 4.3
+SHOULD
+ include 
+refresh_token
+ in their 
+grant_types
+ client metadata
+MAY
+ add 
+offline_access
+ to the 
+scope
+ parameter of the authorization and token requests when the Authorization Server metadata contains it in 
+scopes_supported
+MUST NOT
+ assume refresh tokens will be issued; the AS retains discretion
+MCP Servers
+ (Protected Resources) 
+SHOULD NOT
+ include 
+offline_access
+ in
+WWW-Authenticate
+ scope or Protected Resource Metadata 
+scopes_supported
+, as refresh
+tokens are not a resource requirement.
+​
+Error Handling
+Servers 
+MUST
+ return appropriate HTTP status codes for authorization errors:
+Status Code
+Description
+Usage
+401
+Unauthorized
+Authorization required or token invalid
+403
+Forbidden
+Invalid scopes or insufficient permissions
+400
+Bad Request
+Malformed authorization request
+​
+Scope Challenge Handling
+This section covers handling insufficient scope errors during runtime operations when
+a client already has a token but needs additional permissions. This follows the error
+handling patterns defined in 
+OAuth 2.1 Section 5
+and leverages the metadata fields from 
+RFC 9728 (OAuth 2.0 Protected Resource Metadata)
+.
+​
+Runtime Insufficient Scope Errors
+When a client makes a request with an access token with insufficient
+scope during runtime operations, the server 
+SHOULD
+ respond with:
+HTTP 403 Forbidden
+ status code (per 
+RFC 6750 Section 3.1
+)
+WWW-Authenticate
+ header with the 
+Bearer
+ scheme and additional parameters:
+error="insufficient_scope"
+ - indicating the specific type of authorization failure
+scope="required_scope1 required_scope2"
+ - specifying the minimum scopes needed for the operation
+resource_metadata
+ - the URI of the Protected Resource Metadata document (for consistency with 401 responses)
+error_description
+ (optional) - human-readable description of the error
+Server Scope Management
+: When responding with insufficient scope errors, servers
+SHOULD
+ include the scopes needed to satisfy the current operation in the 
+scope
+parameter, consistent with
+RFC 6750 Section 3.1
+.
+The 
+scope
+ attribute describes the scopes necessary to access
+the requested resource — servers are not required to include
+the client’s previously granted scopes.
+Whatever scope-inclusion strategy a server adopts, servers 
+SHOULD
+ include all
+scopes required for the current operation in a single challenge.
+Challenging incrementally (returning one missing scope, then another
+on the subsequent retry) forces multiple authorization round-trips
+for a single operation and degrades user experience. The required
+scopes may be determined dynamically based on the specific request
+arguments and context, but once determined, they should be emitted
+together.
+Servers 
+SHOULD
+ be consistent in their scope inclusion strategy to provide predictable behavior for clients.
+Servers 
+SHOULD
+ consider the user experience impact when determining which scopes to include in the
+response, as misconfigured scopes may require frequent user interaction.
+Scope accumulation across operations is a client-side responsibility. See the
+Step-Up Authorization Flow
+ for the scope-union requirement.
+Example insufficient scope response:
+HTTP
+/
+1.1
+ 403
+ Forbidden
+WWW-Authenticate
+:
+ Bearer error="insufficient_scope",
+ scope="files:write",
+ resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource",
+ error_description="File write permission required for this operation"
+​
+Step-Up Authorization Flow
+Clients will receive scope-related errors during initial authorization or at runtime (
+insufficient_scope
+).
+Clients 
+SHOULD
+ respond to these errors by requesting a new access token with an increased set of scopes via a step-up authorization flow or handle the errors in other, appropriate ways.
+Clients acting on behalf of a user 
+SHOULD
+ attempt the step-up authorization flow. Clients acting on their own behalf (
+client_credentials
+ clients)
+MAY
+ attempt the step-up authorization flow or abort the request immediately.
+The flow is as follows:
+Parse error information
+ from the authorization server response or 
+WWW-Authenticate
+ header
+Determine required scopes
+ by computing the union of the
+client’s previously requested scope set and the scopes from
+the current challenge. This ensures previously granted
+permissions are preserved when servers emit per-operation
+scope challenges per
+RFC 6750 Section 3.1
+.
+Clients 
+MAY
+ also consult the
+Scope Selection Strategy
+ for
+initial scope selection guidance.
+Initiate (re-)authorization
+ with the determined scope set
+Retry the original request
+ with the new authorization no more than a few times and treat this as a permanent authorization failure
+Clients 
+SHOULD
+ implement retry limits and 
+SHOULD
+ track scope upgrade attempts to avoid
+repeated failures for the same resource and operation combination.
+Servers 
+MUST
+ account for scope hierarchies, where a broader scope implies narrower ones, when
+deciding whether a token is sufficient for an operation.
+​
+Security Considerations
+Implementations of this specification 
+MUST
+ follow the normative security
+requirements in 
+Security Considerations
+,
+covering token audience binding and validation, token theft, communication security,
+authorization code protection, mix-up and confused deputy attacks, open redirection,
+and Client ID Metadata Document security.
+​
+MCP Authorization Extensions
+There are several authorization extensions to the core protocol that define additional authorization mechanisms. These extensions are:
+Optional
+ - Implementations can choose to adopt these extensions
+Additive
+ - Extensions do not modify or break core protocol functionality; they add new capabilities while preserving core protocol behavior
+Composable
+ - Extensions are modular and designed to work together without conflicts, allowing implementations to adopt multiple extensions simultaneously
+Versioned independently
+ - Extensions follow the core MCP versioning cycle but may adopt independent versioning as needed
+A list of supported extensions can be found in the 
+MCP Authorization Extensions
+ repository.
+Was this page helpful?
+Yes
+No
+Streamable HTTP
+Authorization Server Discovery
+github
+discord
+{"docsConfig":{"theme":"mint","$schema":"https://mintlify.com/docs.json","name":"Model Context Protocol","colors":{"primary":"#09090b","light":"#FAFAFA","dark":"#09090b"},"logo":{"light":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499","dark":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/dark.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=1227cb7feb8344f9f6288c6b5b0a6d80"},"favicon":"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/favicon.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=e419be76252c1cb0a6924602b9de428f","navbar":{"links":[{"href":"https://blog.modelcontextprotocol.io","label":"Blog"},{"href":"https://github.com/modelcontextprotocol","label":"GitHub"},{"href":"https://discord.gg/6CSzBmMkjX","label":"Discord"}]},"footer":{"socials":{"github":"https://github.com/modelcontextprotocol","discord":"https://discord.gg/6CSzBmMkjX"}},"seo":{"metatags":{"og:image":"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png"},"indexing":"navigable"},"contextual":{"options":["copy","view"],"display":"header"},"styling":{"latex":false},"navigation":{"pages":[]}},"deployment":{"deploymentMetadataValue":{"subdomain":"mcp","hasAudioNarration":false,"actualSubdomain":"mcp","customDomains":["modelcontextprotocol.io","modelcontextprotocol.net","modelcontextprotocol.org"],"gitSource":{"type":"github","owner":"modelcontextprotocol","repo":"modelcontextprotocol","deployBranch":"main","contentDirectory":"docs","isPrivate":true,"mountPath":"","label":""},"chroma":{"liveDeploymentHistoryId":"6ae5a287f146f7c5c1de2206","collectionId":"0747fc7a-5cbf-48b3-9c5a-a6467bdc1cd5","schemaVersion":"v3","latestBuiltDeploymentHistoryId":"6ae5a287f146f7c5c1de2206"},"feedback":{"thumbs":true},"entitlements":{"AI_CHAT":{"status":"ENABLED"},"REMOVE_BRANDING":{"status":"ENABLED"},"CONTEXTUAL_FEEDBACK":{"status":"ENABLED"},"CODE_SNIPPET_FEEDBACK":{"status":"ENABLED"},"WEB_MCP":{"status":"ENABLED"},"NARRATION":{"status":"ENABLED"}},"buildId":"6ae5a287f146f7c5c1de2206","clientVersion":"0.0.4043","searchFilterCounts":[{"language":"default","tag":"Specification","count":142},{"language":"default","tag":"Documentation","count":117},{"language":"default","tag":"Base Protocol","count":57},{"language":"default","tag":"Develop with MCP","count":56},{"language":"default","tag":"SEPs","count":46},{"language":"default","tag":"Server Features","count":46},{"language":"default","tag":"Final","count":44},{"language":"default","tag":"Community","count":34},{"language":"default","tag":"Utilities","count":33},{"language":"default","tag":"Developer tools","count":30}]},"assistantConfig":{},"basePath":"","hasChatPermissions":true,"hasWebMcpPermissions":true,"toggles":[{"name":"kill-isr","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-mintlify-slack","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"agent-integrations-settings","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-pr-grouping","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"custom-prefix","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"analytics-v7","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"user-flows-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"no-publish-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-onboarding","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"llms-txt-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving-live","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"stripTemperatureMiddleware","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"support-platform-pylon-zendesk","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"snapshot-serving","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"instant-rollback","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications-server","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"granular-notifications","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automations-fable","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fixed-ai-action-pricing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"automation-resolve-merge-conflict","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"scoped-publishing","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"mintql","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"page-level-analytics","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"editor-version-history-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-page-v2","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"full-page-search","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workspace-projects","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"assistant-v5","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"byok-sep-25","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"fork-pr-previews","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"revalidation-jwt","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"vite-origin","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"billing-updated-9-15","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-sso-scim","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"hobby-abuse-scan","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"dashboard-inbox","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-signup","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"turbopuffer-dual-write","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"workos-enabled","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"approve-review-flow","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false},{"name":"sso-setup-deadline-banner","enabled":true,"variant":{"name":"disabled","enabled":false,"feature_enabled":true},"impressionData":false}],"googleFontsInlined":false},"customCss":[{"filePath":"style.css","content":"#content-area{--font-mono:var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace}#enable-section-numbers,#schema-reference{display:none}body:has(#schema-reference){--mt-md:0.5rem;--mt-lg:1rem;--mt-xl:1.5rem}#footer{flex-wrap:wrap;row-gap:1.5rem}#lf-copyright{flex:1 1 32rem;min-width:0;text-align:center;font-size:.875rem;color:rgb(var(--gray-500));line-height:1.5}"}],"page":{"pagePath":"specification/2026-07-28/basic/authorization","slug":"/specification/2026-07-28/basic/authorization","pageMetadata":{"title":"Authorization","sidebarTitle":"Overview","description":null,"href":"/specification/2026-07-28/basic/authorization/index"},"pageType":"default","mdx":{"mdxSource":{"compiledSource":"\"use strict\";const{Fragment:_Fragment,jsx:_jsx,jsxs:_jsxs}=arguments[0];const{useMDXComponents:_provideComponents}=arguments[0];function _createMdxContent(props){const _components={a:`a`,blockquote:`blockquote`,code:`code`,em:`em`,li:`li`,ol:`ol`,p:`p`,pre:`pre`,span:`span`,strong:`strong`,tbody:`tbody`,td:`td`,th:`th`,thead:`thead`,tr:`tr`,ul:`ul`,..._provideComponents(),...props.components},{CodeBlock,Heading,Mermaid,Table}=_components;if(!CodeBlock)_missingMdxReference(`CodeBlock`,true);if(!Heading)_missingMdxReference(`Heading`,true);if(!Mermaid)_missingMdxReference(`Mermaid`,true);if(!Table)_missingMdxReference(`Table`,true);return _jsxs(_Fragment,{children:[_jsx(`div`,{id:`enable-section-numbers`}),`\n`,_jsx(Heading,{level:`2`,id:`introduction`,children:`Introduction`}),`\n`,_jsx(Heading,{level:`3`,id:`purpose-and-scope`,children:`Purpose and Scope`}),`\n`,_jsx(_components.p,{children:`The Model Context Protocol provides authorization capabilities at the transport level,\nenabling MCP clients to make requests to restricted MCP servers on behalf of resource\nowners. This specification defines the authorization flow for HTTP-based transports.`}),`\n`,_jsx(Heading,{level:`3`,id:`protocol-requirements`,children:`Protocol Requirements`}),`\n`,_jsxs(_components.p,{children:[`Authorization is `,_jsx(_components.strong,{children:`OPTIONAL`}),` for MCP implementations. When supported:`]}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[`Implementations using an HTTP-based transport `,_jsx(_components.strong,{children:`SHOULD`}),` conform to this specification.`]}),`\n`,_jsxs(_components.li,{children:[`Implementations using an STDIO transport `,_jsx(_components.strong,{children:`SHOULD NOT`}),` follow this specification, and\ninstead retrieve credentials from the environment.`]}),`\n`,_jsxs(_components.li,{children:[`Implementations using alternative transports `,_jsx(_components.strong,{children:`MUST`}),` follow established security best\npractices for their protocol.`]}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`standards-compliance`,children:`Standards Compliance`}),`\n`,_jsx(_components.p,{children:`This authorization mechanism is based on established specifications listed below, but\nimplements a selected subset of their features to ensure security and interoperability\nwhile maintaining simplicity:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[`OAuth 2.1 IETF DRAFT (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13`,children:`draft-ietf-oauth-v2-1-13`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`OAuth 2.0 Bearer Token Usage\n(`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc6750`,children:`RFC6750`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`OAuth 2.0 Authorization Server Metadata\n(`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc8414`,children:`RFC8414`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`OAuth 2.0 Dynamic Client Registration Protocol\n(`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc7591`,children:`RFC7591`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`Resource Indicators for OAuth 2.0\n(`,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc8707.html`,children:`RFC8707`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`OAuth 2.0 Protected Resource Metadata (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9728`,children:`RFC9728`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`OAuth 2.0 Authorization Server Issuer Identification (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207`,children:`RFC9207`}),`)`]}),`\n`,_jsxs(_components.li,{children:[`OAuth Client ID Metadata Documents (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00`,children:`draft-ietf-oauth-client-id-metadata-document-00`}),`)`]}),`\n`,_jsx(_components.li,{children:_jsx(_components.a,{href:`https://openid.net/specs/openid-connect-discovery-1_0.html`,children:`OpenID Connect Discovery 1.0`})}),`\n`,_jsxs(_components.li,{children:[`OpenID Connect Dynamic Client Registration 1.0 (`,_jsx(_components.a,{href:`https://openid.net/specs/openid-connect-registration-1_0.html`,children:`OpenID Connect Registration`}),`)`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`roles`,children:`Roles`}),`\n`,_jsxs(_components.p,{children:[`A protected `,_jsx(_components.em,{children:`MCP server`}),` acts as an `,_jsx(_components.a,{href:`https://www.ietf.org/archive/id/draft-ietf-oauth-v2-1-13.html#name-roles`,children:`OAuth 2.1 resource server`}),`,\ncapable of accepting and responding to protected resource requests using access tokens.`]}),`\n`,_jsxs(_components.p,{children:[`An `,_jsx(_components.em,{children:`MCP client`}),` acts as an `,_jsx(_components.a,{href:`https://www.ietf.org/archive/id/draft-ietf-oauth-v2-1-13.html#name-roles`,children:`OAuth 2.1 client`}),`,\nmaking protected resource requests on behalf of a resource owner.`]}),`\n`,_jsxs(_components.p,{children:[`The `,_jsx(_components.em,{children:`authorization server`}),` is responsible for interacting with the user (if necessary) and issuing access tokens for use at the MCP server.\nThe implementation details of the authorization server are beyond the scope of this specification. It may be hosted with the\nresource server or a separate entity. `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/authorization-server-discovery`,children:`Authorization Server Discovery`}),`\nspecifies how an MCP server indicates the location of its corresponding authorization server to a client.`]}),`\n`,_jsx(Heading,{level:`2`,id:`overview`,children:`Overview`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Authorization servers `,_jsx(_components.strong,{children:`MUST`}),` implement OAuth 2.1 with appropriate security\nmeasures for both confidential and public clients.`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Authorization servers and MCP clients `,_jsx(_components.strong,{children:`SHOULD`}),` support `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/client-registration#client-id-metadata-documents`,children:`OAuth Client ID Metadata Documents`}),`\n(`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-client-id-metadata-document-00`,children:`draft-ietf-oauth-client-id-metadata-document-00`}),`).`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`Authorization servers and MCP clients `,_jsx(_components.strong,{children:`MAY`}),` support the OAuth 2.0 Dynamic Client Registration\nProtocol (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc7591`,children:`RFC7591`}),`). Note that\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/client-registration#dynamic-client-registration`,children:`Dynamic Client Registration`}),`\nis deprecated and retained for backwards compatibility with authorization servers that do not support Client ID Metadata Documents.`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`MCP servers `,_jsx(_components.strong,{children:`MUST`}),` implement OAuth 2.0 Protected Resource Metadata (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9728`,children:`RFC9728`}),`).\nMCP clients `,_jsx(_components.strong,{children:`MUST`}),` use OAuth 2.0 Protected Resource Metadata for `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/authorization-server-discovery`,children:`authorization server discovery`}),`.`]}),`\n`]}),`\n`,_jsxs(_components.li,{children:[`\n`,_jsxs(_components.p,{children:[`MCP authorization servers `,_jsx(_components.strong,{children:`MUST`}),` provide at least one of the following discovery mechanisms:`]}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[`OAuth 2.0 Authorization Server Metadata (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc8414`,children:`RFC8414`}),`)`]}),`\n`,_jsx(_components.li,{children:_jsx(_components.a,{href:`https://openid.net/specs/openid-connect-discovery-1_0.html`,children:`OpenID Connect Discovery 1.0`})}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`MCP clients `,_jsx(_components.strong,{children:`MUST`}),` support both `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery`,children:`discovery mechanisms`}),` to obtain the information required to interact with the authorization server.`]}),`\n`]}),`\n`]}),`\n`,_jsx(Heading,{level:`2`,id:`authorization-server-discovery`,children:`Authorization Server Discovery`}),`\n`,_jsxs(_components.p,{children:[`MCP servers advertise their associated authorization servers through OAuth 2.0 Protected\nResource Metadata, and MCP clients determine authorization server endpoints and supported\ncapabilities through authorization server metadata discovery. Implementations `,_jsx(_components.strong,{children:`MUST`}),`\nfollow the normative discovery requirements defined in\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/authorization-server-discovery`,children:`Authorization Server Discovery`}),`.`]}),`\n`,_jsx(Heading,{level:`2`,id:`client-registration`,children:`Client Registration`}),`\n`,_jsxs(_components.p,{children:[`Before initiating the authorization flow, MCP clients `,_jsx(_components.strong,{children:`MUST`}),` obtain a client ID through\none of three registration mechanisms: Client ID Metadata Documents, pre-registration, or\nDynamic Client Registration, following the requirements and selection priority defined in\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/client-registration`,children:`Client Registration`}),`.`]}),`\n`,_jsx(Heading,{level:`2`,id:`scope-selection-strategy`,children:`Scope Selection Strategy`}),`\n`,_jsxs(_components.p,{children:[`MCP servers `,_jsx(_components.strong,{children:`SHOULD`}),` include a `,_jsx(_components.code,{children:`scope`}),` parameter in the `,_jsx(_components.code,{children:`WWW-Authenticate`}),` header as defined in\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc6750#section-3`,children:`RFC 6750 Section 3`}),`\nto indicate the scopes required for accessing the resource. This provides clients with immediate\nguidance on the appropriate scopes to request during authorization,\nfollowing the principle of least privilege and preventing clients from requesting excessive permissions.`]}),`\n`,_jsxs(_components.p,{children:[`The scopes included in the `,_jsx(_components.code,{children:`WWW-Authenticate`}),` challenge `,_jsx(_components.strong,{children:`MAY`}),` match `,_jsx(_components.code,{children:`scopes_supported`}),`, be a subset\nor superset of it, or an alternative collection that is neither a strict subset nor\nsuperset. Clients `,_jsx(_components.strong,{children:`MUST NOT`}),` assume any particular set relationship between the challenged\nscope set and `,_jsx(_components.code,{children:`scopes_supported`}),`. Clients `,_jsx(_components.strong,{children:`MUST`}),` treat the scopes provided in the\nchallenge as authoritative for the current operation. These scopes are required to\nsatisfy the current request. When re-authorizing, clients `,_jsx(_components.strong,{children:`SHOULD`}),` include these scopes\nalongside any previously granted scopes to avoid losing permissions needed for other operations\n(see `,_jsx(_components.a,{href:`#step-up-authorization-flow`,children:`Step-Up Authorization Flow`}),`). Servers `,_jsx(_components.strong,{children:`SHOULD`}),` strive for\nconsistency in how they construct scope sets but they are not required to surface every dynamically\nissued scope through `,_jsx(_components.code,{children:`scopes_supported`}),`.`]}),`\n`,_jsx(_components.p,{children:`Example 401 response with scope guidance:`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`3`,language:`http`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`http`,children:_jsxs(_components.code,{language:`http`,numberOfLines:`3`,children:[_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`HTTP`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`/`}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`1.1`}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:` 401`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` Unauthorized`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#569CD6`},children:`WWW-Authenticate`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`:`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` Bearer resource_metadata=\"https://mcp.example.com/.well-known/oauth-protected-resource\",`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` scope=\"files:read\"`})}),`\n`]})})}),`\n`,_jsxs(_components.p,{children:[`When implementing authorization flows, MCP clients `,_jsx(_components.strong,{children:`SHOULD`}),` follow the principle of least privilege by requesting\nonly the scopes necessary for their intended operations. During the initial authorization handshake, MCP clients\n`,_jsx(_components.strong,{children:`SHOULD`}),` follow this priority order for scope selection:`]}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[_jsxs(_components.strong,{children:[`Use `,_jsx(_components.code,{children:`scope`}),` parameter`]}),` from the initial `,_jsx(_components.code,{children:`WWW-Authenticate`}),` header in the 401 response, if provided`]}),`\n`,_jsxs(_components.li,{children:[_jsxs(_components.strong,{children:[`If `,_jsx(_components.code,{children:`scope`}),` is not available`]}),`, use all scopes defined in `,_jsx(_components.code,{children:`scopes_supported`}),` from the Protected Resource Metadata document, omitting the `,_jsx(_components.code,{children:`scope`}),` parameter if `,_jsx(_components.code,{children:`scopes_supported`}),` is undefined.`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`The `,_jsx(_components.code,{children:`scopes_supported`}),` field is intended to represent the minimal set of scopes necessary\nfor basic functionality (see `,_jsx(_components.a,{href:`/docs/2026-07-28/tutorials/security/security_best_practices#scope-minimization`,children:`Scope Minimization`}),`),\nwith additional scopes requested incrementally through the step-up authorization flow steps\ndescribed in the `,_jsx(_components.a,{href:`#scope-challenge-handling`,children:`Scope Challenge Handling`}),` section.`]}),`\n`,_jsx(Heading,{level:`2`,id:`authorization-flow-steps`,children:`Authorization Flow Steps`}),`\n`,_jsxs(_components.p,{children:[`The registration step shown in the flow uses one of the mechanisms defined in\n`,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/client-registration`,children:`Client Registration`}),`.`]}),`\n`,_jsx(_components.p,{children:`The complete Authorization flow proceeds as follows:`}),`\n`,_jsx(Mermaid,{chart:`sequenceDiagram\n participant B as User-Agent (Browser)\n participant C as Client\n participant M as MCP Server (Resource Server)\n participant A as Authorization Server\n\n C->>M: MCP request without token\n M->>C: HTTP 401 Unauthorized with WWW-Authenticate header\n Note over C: Extract resource_metadata URL from WWW-Authenticate\n\n C->>M: Request Protected Resource Metadata\n M->>C: Return metadata\n\n Note over C: Parse metadata and extract authorization server(s)\u003cbr/>Client determines AS to use\n\n C->>A: GET Authorization server metadata endpoint\n Note over C,A: Try OAuth 2.0 and OpenID Connect\u003cbr/>discovery endpoints in priority order\n A-->>C: Authorization server metadata\n\n alt Client ID Metadata Documents\n Note over C: Client uses HTTPS URL as client_id\n Note over A: Server detects URL-formatted client_id\n A->>C: Fetch metadata from client_id URL\n C-->>A: JSON metadata document\n Note over A: Validate metadata and redirect_uris\n else Dynamic client registration\n C->>A: POST /register\n A->>C: Client Credentials\n else Pre-registered client\n Note over C: Use existing client_id\n end\n\n Note over C: Generate PKCE parameters\u003cbr/>Include resource parameter\u003cbr/>Apply scope selection strategy\u003cbr/>Record expected issuer\n C->>B: Open browser with authorization URL + code_challenge + resource\n B->>A: Authorization request with resource parameter\n Note over A: User authorizes\n A->>B: Redirect to callback with authorization code + iss\n B->>C: Authorization code callback\n Note over C: Validate iss against recorded issuer (RFC 9207)\n C->>A: Token request + code_verifier + resource\n A->>C: Access token (+ refresh token)\n C->>M: MCP request with access token\n M-->>C: MCP response\n Note over C,M: MCP communication continues with valid token`}),`\n`,_jsx(Heading,{level:`3`,id:`authorization-response-validation`,children:`Authorization Response Validation`}),`\n`,_jsxs(_components.p,{children:[`Before redirecting the user-agent, the client `,_jsx(_components.strong,{children:`MUST`}),` record the `,_jsx(_components.code,{children:`issuer`}),` value from the selected authorization server’s validated metadata document (see `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/authorization-server-discovery#authorization-server-metadata-discovery`,children:`Authorization Server Metadata Discovery`}),`) and associate it with the same per-request record used to store the PKCE code verifier (and the `,_jsx(_components.code,{children:`state`}),` value, if used). The validation in this section depends on that recorded value being authentic; it provides no protection if the expected issuer was obtained from an unvalidated source.`]}),`\n`,_jsxs(_components.p,{children:[`MCP authorization servers `,_jsx(_components.strong,{children:`SHOULD`}),` include the `,_jsx(_components.code,{children:`iss`}),` parameter in authorization responses, including error responses, as defined in `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207#section-2`,children:`RFC9207 Section 2`}),`. Authorization servers that include the `,_jsx(_components.code,{children:`iss`}),` parameter `,_jsx(_components.strong,{children:`MUST`}),` advertise this by setting `,_jsx(_components.code,{children:`authorization_response_iss_parameter_supported`}),` to `,_jsx(_components.code,{children:`true`}),` in their metadata (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207#section-2.3`,children:`RFC9207 Section 2.3`}),`).`]}),`\n`,_jsxs(_components.p,{children:[`On receiving the authorization response, MCP clients `,_jsx(_components.strong,{children:`MUST`}),` apply the validation in `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207#section-2.4`,children:`RFC9207 Section 2.4`}),` before transmitting the authorization code to any token endpoint:`]}),`\n`,_jsxs(Table,{children:[_jsx(_components.thead,{children:_jsxs(_components.tr,{children:[_jsx(_components.th,{children:_jsx(_components.code,{children:`authorization_response_iss_parameter_supported`})}),_jsxs(_components.th,{children:[_jsx(_components.code,{children:`iss`}),` in response`]}),_jsx(_components.th,{children:`Client action`})]})}),_jsxs(_components.tbody,{children:[_jsxs(_components.tr,{children:[_jsx(_components.td,{children:_jsx(_components.code,{children:`true`})}),_jsx(_components.td,{children:`present`}),_jsxs(_components.td,{children:[`Compare to the recorded issuer using simple string comparison (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.1`,children:`RFC3986 Section 6.2.1`}),`)`]})]}),_jsxs(_components.tr,{children:[_jsx(_components.td,{children:_jsx(_components.code,{children:`true`})}),_jsx(_components.td,{children:`absent`}),_jsx(_components.td,{children:`Reject the response`})]}),_jsxs(_components.tr,{children:[_jsxs(_components.td,{children:[_jsx(_components.code,{children:`false`}),` or absent`]}),_jsx(_components.td,{children:`present`}),_jsxs(_components.td,{children:[`Compare to the recorded issuer using simple string comparison (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.1`,children:`RFC3986 Section 6.2.1`}),`)`]})]}),_jsxs(_components.tr,{children:[_jsxs(_components.td,{children:[_jsx(_components.code,{children:`false`}),` or absent`]}),_jsx(_components.td,{children:`absent`}),_jsx(_components.td,{children:`Proceed`})]})]})]}),`\n`,_jsxs(_components.p,{children:[`The third row applies the local-policy provision in `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207#section-2.4`,children:`RFC9207 Section 2.4`}),`: this specification compares a present `,_jsx(_components.code,{children:`iss`}),` against the recorded issuer regardless of metadata advertisement, to accommodate authorization servers that emit `,_jsx(_components.code,{children:`iss`}),` before updating their metadata.`]}),`\n`,_jsxs(_components.p,{children:[`A future revision of this specification is expected to upgrade authorization server inclusion of `,_jsx(_components.code,{children:`iss`}),` from `,_jsx(_components.strong,{children:`SHOULD`}),` to `,_jsx(_components.strong,{children:`MUST`}),`. Implementers are encouraged to emit and validate `,_jsx(_components.code,{children:`iss`}),` now to ease that transition; client rejection behavior on `,_jsx(_components.code,{children:`iss`}),` absence will continue to be keyed on `,_jsx(_components.code,{children:`authorization_response_iss_parameter_supported`}),` until that revision defines the upgrade path.`]}),`\n`,_jsxs(_components.p,{children:[`After decoding the `,_jsx(_components.code,{children:`iss`}),` value from the `,_jsx(_components.code,{children:`application/x-www-form-urlencoded`}),` response per `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9207#section-2.4`,children:`RFC 9207 Section 2.4`}),`, clients `,_jsx(_components.strong,{children:`MUST NOT`}),` apply scheme or host case folding, default-port elision, trailing-slash, or percent-encoding normalization (`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc3986#section-6.2.2`,children:`RFC 3986 Sections 6.2.2-6.2.3`}),`) before comparison.`]}),`\n`,_jsxs(_components.p,{children:[`This validation applies equally to error responses - on mismatch the client `,_jsx(_components.strong,{children:`MUST NOT`}),` act on or display `,_jsx(_components.code,{children:`error`}),`, `,_jsx(_components.code,{children:`error_description`}),`, or `,_jsx(_components.code,{children:`error_uri`}),`.`]}),`\n`,_jsx(Heading,{level:`2`,id:`resource-parameter-implementation`,children:`Resource Parameter Implementation`}),`\n`,_jsxs(_components.p,{children:[`MCP clients `,_jsx(_components.strong,{children:`MUST`}),` implement Resource Indicators for OAuth 2.0 as defined in `,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc8707.html`,children:`RFC 8707`}),`\nto explicitly specify the target resource for which the token is being requested. The `,_jsx(_components.code,{children:`resource`}),` parameter:`]}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`MUST`}),` be included in both authorization requests and token requests.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`MUST`}),` identify the MCP server that the client intends to use the token with.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`MUST`}),` use the canonical URI of the MCP server as defined in `,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc8707.html#name-access-token-request`,children:`RFC 8707 Section 2`}),`.`]}),`\n`]}),`\n`,_jsx(Heading,{level:`3`,id:`canonical-server-uri`,children:`Canonical Server URI`}),`\n`,_jsxs(_components.p,{children:[`For the purposes of this specification, the canonical URI of an MCP server is defined as the resource identifier as specified in\n`,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc8707.html#section-2`,children:`RFC 8707 Section 2`}),` and aligns with the `,_jsx(_components.code,{children:`resource`}),` parameter in\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9728`,children:`RFC 9728`}),`.`]}),`\n`,_jsxs(_components.p,{children:[`MCP clients `,_jsx(_components.strong,{children:`SHOULD`}),` provide the most specific URI that they can for the MCP server they intend to access, following the guidance in `,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc8707`,children:`RFC 8707`}),`. While the canonical form uses lowercase scheme and host components, implementations `,_jsx(_components.strong,{children:`SHOULD`}),` accept uppercase scheme and host components for robustness and interoperability.`]}),`\n`,_jsx(_components.p,{children:`Examples of valid canonical URIs:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsx(_components.li,{children:_jsx(_components.code,{children:`https://mcp.example.com/mcp`})}),`\n`,_jsx(_components.li,{children:_jsx(_components.code,{children:`https://mcp.example.com`})}),`\n`,_jsx(_components.li,{children:_jsx(_components.code,{children:`https://mcp.example.com:8443`})}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`https://mcp.example.com/server/mcp`}),` (when path component is necessary to identify individual MCP server)`]}),`\n`]}),`\n`,_jsx(_components.p,{children:`Examples of invalid canonical URIs:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`mcp.example.com`}),` (missing scheme)`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`https://mcp.example.com#fragment`}),` (contains fragment)`]}),`\n`]}),`\n`,_jsxs(_components.blockquote,{children:[`\n`,_jsxs(_components.p,{children:[_jsx(_components.strong,{children:`Note:`}),` While both `,_jsx(_components.code,{children:`https://mcp.example.com/`}),` (with trailing slash) and `,_jsx(_components.code,{children:`https://mcp.example.com`}),` (without trailing slash) are technically valid absolute URIs according to `,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc3986`,children:`RFC 3986`}),`, implementations `,_jsx(_components.strong,{children:`SHOULD`}),` consistently use the form without the trailing slash for better interoperability unless the trailing slash is semantically significant for the specific resource.`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`For example, if accessing an MCP server at `,_jsx(_components.code,{children:`https://mcp.example.com`}),`, the authorization request would include:`]}),`\n`,_jsx(CodeBlock,{numberOfLines:`2`,language:`text`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`text`,children:_jsxs(_components.code,{language:`text`,numberOfLines:`2`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{children:`\u0026resource=https%3A%2F%2Fmcp.example.com`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{})})]})})}),`\n`,_jsxs(_components.p,{children:[`MCP clients `,_jsx(_components.strong,{children:`MUST`}),` send this parameter regardless of whether authorization servers support it.`]}),`\n`,_jsx(Heading,{level:`2`,id:`access-token-usage`,children:`Access Token Usage`}),`\n`,_jsx(Heading,{level:`3`,id:`token-requirements`,children:`Token Requirements`}),`\n`,_jsxs(_components.p,{children:[`Access token handling when making requests to MCP servers `,_jsx(_components.strong,{children:`MUST`}),` conform to the requirements defined in\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5`,children:`OAuth 2.1 Section 5 “Resource Requests”`}),`.\nSpecifically:`]}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[`MCP client `,_jsx(_components.strong,{children:`MUST`}),` use the Authorization request header field defined in\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.1.1`,children:`OAuth 2.1 Section 5.1.1`}),`:`]}),`\n`]}),`\n`,_jsx(CodeBlock,{numberOfLines:`2`,language:`text`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`text`,children:_jsxs(_components.code,{language:`text`,numberOfLines:`2`,children:[_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{children:`Authorization: Bearer \u003caccess-token>`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{})})]})})}),`\n`,_jsxs(_components.p,{children:[`Note that authorization `,_jsx(_components.strong,{children:`MUST`}),` be included in every HTTP request from client to server.`]}),`\n`,_jsxs(_components.ol,{start:`2`,children:[`\n`,_jsxs(_components.li,{children:[`Access tokens `,_jsx(_components.strong,{children:`MUST NOT`}),` be included in the URI query string`]}),`\n`]}),`\n`,_jsx(_components.p,{children:`Example request:`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`3`,language:`http`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`http`,children:_jsxs(_components.code,{language:`http`,numberOfLines:`3`,children:[_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#C586C0`},children:`GET`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` /mcp `}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`HTTP`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`/`}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`1.1`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#569CD6`},children:`Host`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`:`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` mcp.example.com`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#569CD6`},children:`Authorization`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`:`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` Bearer eyJhbGciOiJIUzI1NiIs...`})]}),`\n`]})})}),`\n`,_jsx(Heading,{level:`3`,id:`token-handling`,children:`Token Handling`}),`\n`,_jsxs(_components.p,{children:[`MCP servers, acting in their role as an OAuth 2.1 resource server, `,_jsx(_components.strong,{children:`MUST`}),` validate access tokens as described in\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.2`,children:`OAuth 2.1 Section 5.2`}),`.\nMCP servers `,_jsx(_components.strong,{children:`MUST`}),` validate that access tokens were issued specifically for them as the intended audience,\naccording to `,_jsx(_components.a,{href:`https://www.rfc-editor.org/rfc/rfc8707.html#section-2`,children:`RFC 8707 Section 2`}),`.\nIf validation fails, servers `,_jsx(_components.strong,{children:`MUST`}),` respond according to\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5.3`,children:`OAuth 2.1 Section 5.3`}),`\nerror handling requirements. Invalid or expired tokens `,_jsx(_components.strong,{children:`MUST`}),` receive a HTTP 401\nresponse.`]}),`\n`,_jsxs(_components.p,{children:[`MCP clients `,_jsx(_components.strong,{children:`MUST NOT`}),` send tokens to the MCP server other than ones issued by the MCP server’s authorization server.`]}),`\n`,_jsxs(_components.p,{children:[`MCP servers `,_jsx(_components.strong,{children:`MUST`}),` only accept tokens that are valid for use with their\nown resources.`]}),`\n`,_jsxs(_components.p,{children:[`MCP servers `,_jsx(_components.strong,{children:`MUST NOT`}),` accept or transit any other tokens.`]}),`\n`,_jsx(Heading,{level:`2`,id:`refresh-tokens`,children:`Refresh Tokens`}),`\n`,_jsx(_components.p,{children:`This section provides guidance for MCP Clients and MCP Servers when handling or issuing\nrefresh tokens for both OAuth and OpenID Connect.`}),`\n`,_jsxs(_components.p,{children:[_jsx(_components.strong,{children:`MCP Clients`}),` that desire refresh tokens:`]}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`MUST`}),` keep refresh tokens confidential in transit and storage as specified in `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-14#section-4.3`,children:`OAuth 2.1 Section 4.3`})]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`SHOULD`}),` include `,_jsx(_components.code,{children:`refresh_token`}),` in their `,_jsx(_components.code,{children:`grant_types`}),` client metadata`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`MAY`}),` add `,_jsx(_components.code,{children:`offline_access`}),` to the `,_jsx(_components.code,{children:`scope`}),` parameter of the authorization and token requests when the Authorization Server metadata contains it in `,_jsx(_components.code,{children:`scopes_supported`})]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`MUST NOT`}),` assume refresh tokens will be issued; the AS retains discretion`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[_jsx(_components.strong,{children:`MCP Servers`}),` (Protected Resources) `,_jsx(_components.strong,{children:`SHOULD NOT`}),` include `,_jsx(_components.code,{children:`offline_access`}),` in\n`,_jsx(_components.code,{children:`WWW-Authenticate`}),` scope or Protected Resource Metadata `,_jsx(_components.code,{children:`scopes_supported`}),`, as refresh\ntokens are not a resource requirement.`]}),`\n`,_jsx(Heading,{level:`2`,id:`error-handling`,children:`Error Handling`}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`MUST`}),` return appropriate HTTP status codes for authorization errors:`]}),`\n`,_jsxs(Table,{children:[_jsx(_components.thead,{children:_jsxs(_components.tr,{children:[_jsx(_components.th,{children:`Status Code`}),_jsx(_components.th,{children:`Description`}),_jsx(_components.th,{children:`Usage`})]})}),_jsxs(_components.tbody,{children:[_jsxs(_components.tr,{children:[_jsx(_components.td,{\"data-numeric\":`true`,children:`401`}),_jsx(_components.td,{children:`Unauthorized`}),_jsx(_components.td,{children:`Authorization required or token invalid`})]}),_jsxs(_components.tr,{children:[_jsx(_components.td,{\"data-numeric\":`true`,children:`403`}),_jsx(_components.td,{children:`Forbidden`}),_jsx(_components.td,{children:`Invalid scopes or insufficient permissions`})]}),_jsxs(_components.tr,{children:[_jsx(_components.td,{\"data-numeric\":`true`,children:`400`}),_jsx(_components.td,{children:`Bad Request`}),_jsx(_components.td,{children:`Malformed authorization request`})]})]})]}),`\n`,_jsx(Heading,{level:`3`,id:`scope-challenge-handling`,children:`Scope Challenge Handling`}),`\n`,_jsxs(_components.p,{children:[`This section covers handling insufficient scope errors during runtime operations when\na client already has a token but needs additional permissions. This follows the error\nhandling patterns defined in `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-13#section-5`,children:`OAuth 2.1 Section 5`}),`\nand leverages the metadata fields from `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc9728`,children:`RFC 9728 (OAuth 2.0 Protected Resource Metadata)`}),`.`]}),`\n`,_jsx(Heading,{level:`4`,id:`runtime-insufficient-scope-errors`,children:`Runtime Insufficient Scope Errors`}),`\n`,_jsxs(_components.p,{children:[`When a client makes a request with an access token with insufficient\nscope during runtime operations, the server `,_jsx(_components.strong,{children:`SHOULD`}),` respond with:`]}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`HTTP 403 Forbidden`}),` status code (per `,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc6750#section-3.1`,children:`RFC 6750 Section 3.1`}),`)`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`WWW-Authenticate`}),` header with the `,_jsx(_components.code,{children:`Bearer`}),` scheme and additional parameters:`,`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`error=\"insufficient_scope\"`}),` - indicating the specific type of authorization failure`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`scope=\"required_scope1 required_scope2\"`}),` - specifying the minimum scopes needed for the operation`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`resource_metadata`}),` - the URI of the Protected Resource Metadata document (for consistency with 401 responses)`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.code,{children:`error_description`}),` (optional) - human-readable description of the error`]}),`\n`]}),`\n`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[_jsx(_components.strong,{children:`Server Scope Management`}),`: When responding with insufficient scope errors, servers\n`,_jsx(_components.strong,{children:`SHOULD`}),` include the scopes needed to satisfy the current operation in the `,_jsx(_components.code,{children:`scope`}),`\nparameter, consistent with\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc6750#section-3.1`,children:`RFC 6750 Section 3.1`}),`.\nThe `,_jsx(_components.code,{children:`scope`}),` attribute describes the scopes necessary to access\nthe requested resource — servers are not required to include\nthe client’s previously granted scopes.`]}),`\n`,_jsxs(_components.p,{children:[`Whatever scope-inclusion strategy a server adopts, servers `,_jsx(_components.strong,{children:`SHOULD`}),` include all\nscopes required for the current operation in a single challenge.\nChallenging incrementally (returning one missing scope, then another\non the subsequent retry) forces multiple authorization round-trips\nfor a single operation and degrades user experience. The required\nscopes may be determined dynamically based on the specific request\narguments and context, but once determined, they should be emitted\ntogether.`]}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`SHOULD`}),` be consistent in their scope inclusion strategy to provide predictable behavior for clients.`]}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`SHOULD`}),` consider the user experience impact when determining which scopes to include in the\nresponse, as misconfigured scopes may require frequent user interaction.`]}),`\n`,_jsxs(_components.p,{children:[`Scope accumulation across operations is a client-side responsibility. See the\n`,_jsx(_components.a,{href:`#step-up-authorization-flow`,children:`Step-Up Authorization Flow`}),` for the scope-union requirement.`]}),`\n`,_jsx(_components.p,{children:`Example insufficient scope response:`}),`\n`,_jsx(CodeBlock,{filename:``,numberOfLines:`5`,language:`http`,children:_jsx(_components.pre,{className:`shiki shiki-themes github-light-default dark-plus`,style:{backgroundColor:`#ffffff`,\"--shiki-dark-bg\":`#0B0C0E`,color:`#1f2328`,\"--shiki-dark\":`#D4D4D4`},language:`http`,children:_jsxs(_components.code,{language:`http`,numberOfLines:`5`,children:[_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`HTTP`}),_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:`/`}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:`1.1`}),_jsx(_components.span,{style:{color:`#0550AE`,\"--shiki-dark\":`#B5CEA8`},children:` 403`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` Forbidden`})]}),`\n`,_jsxs(_components.span,{className:`line`,children:[_jsx(_components.span,{style:{color:`#116329`,\"--shiki-dark\":`#569CD6`},children:`WWW-Authenticate`}),_jsx(_components.span,{style:{color:`#CF222E`,\"--shiki-dark\":`#569CD6`},children:`:`}),_jsx(_components.span,{style:{color:`#0A3069`,\"--shiki-dark\":`#CE9178`},children:` Bearer error=\"insufficient_scope\",`})]}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` scope=\"files:write\",`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` resource_metadata=\"https://mcp.example.com/.well-known/oauth-protected-resource\",`})}),`\n`,_jsx(_components.span,{className:`line`,children:_jsx(_components.span,{style:{color:`#1F2328`,\"--shiki-dark\":`#D4D4D4`},children:` error_description=\"File write permission required for this operation\"`})}),`\n`]})})}),`\n`,_jsx(Heading,{level:`4`,id:`step-up-authorization-flow`,children:`Step-Up Authorization Flow`}),`\n`,_jsxs(_components.p,{children:[`Clients will receive scope-related errors during initial authorization or at runtime (`,_jsx(_components.code,{children:`insufficient_scope`}),`).\nClients `,_jsx(_components.strong,{children:`SHOULD`}),` respond to these errors by requesting a new access token with an increased set of scopes via a step-up authorization flow or handle the errors in other, appropriate ways.\nClients acting on behalf of a user `,_jsx(_components.strong,{children:`SHOULD`}),` attempt the step-up authorization flow. Clients acting on their own behalf (`,_jsx(_components.code,{children:`client_credentials`}),` clients)\n`,_jsx(_components.strong,{children:`MAY`}),` attempt the step-up authorization flow or abort the request immediately.`]}),`\n`,_jsx(_components.p,{children:`The flow is as follows:`}),`\n`,_jsxs(_components.ol,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Parse error information`}),` from the authorization server response or `,_jsx(_components.code,{children:`WWW-Authenticate`}),` header`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Determine required scopes`}),` by computing the union of the\nclient’s previously requested scope set and the scopes from\nthe current challenge. This ensures previously granted\npermissions are preserved when servers emit per-operation\nscope challenges per\n`,_jsx(_components.a,{href:`https://datatracker.ietf.org/doc/html/rfc6750#section-3.1`,children:`RFC 6750 Section 3.1`}),`.\nClients `,_jsx(_components.strong,{children:`MAY`}),` also consult the\n`,_jsx(_components.a,{href:`#scope-selection-strategy`,children:`Scope Selection Strategy`}),` for\ninitial scope selection guidance.`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Initiate (re-)authorization`}),` with the determined scope set`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Retry the original request`}),` with the new authorization no more than a few times and treat this as a permanent authorization failure`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`Clients `,_jsx(_components.strong,{children:`SHOULD`}),` implement retry limits and `,_jsx(_components.strong,{children:`SHOULD`}),` track scope upgrade attempts to avoid\nrepeated failures for the same resource and operation combination.`]}),`\n`,_jsxs(_components.p,{children:[`Servers `,_jsx(_components.strong,{children:`MUST`}),` account for scope hierarchies, where a broader scope implies narrower ones, when\ndeciding whether a token is sufficient for an operation.`]}),`\n`,_jsx(Heading,{level:`2`,id:`security-considerations`,children:`Security Considerations`}),`\n`,_jsxs(_components.p,{children:[`Implementations of this specification `,_jsx(_components.strong,{children:`MUST`}),` follow the normative security\nrequirements in `,_jsx(_components.a,{href:`/specification/2026-07-28/basic/authorization/security-considerations`,children:`Security Considerations`}),`,\ncovering token audience binding and validation, token theft, communication security,\nauthorization code protection, mix-up and confused deputy attacks, open redirection,\nand Client ID Metadata Document security.`]}),`\n`,_jsx(Heading,{level:`2`,id:`mcp-authorization-extensions`,children:`MCP Authorization Extensions`}),`\n`,_jsx(_components.p,{children:`There are several authorization extensions to the core protocol that define additional authorization mechanisms. These extensions are:`}),`\n`,_jsxs(_components.ul,{children:[`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Optional`}),` - Implementations can choose to adopt these extensions`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Additive`}),` - Extensions do not modify or break core protocol functionality; they add new capabilities while preserving core protocol behavior`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Composable`}),` - Extensions are modular and designed to work together without conflicts, allowing implementations to adopt multiple extensions simultaneously`]}),`\n`,_jsxs(_components.li,{children:[_jsx(_components.strong,{children:`Versioned independently`}),` - Extensions follow the core MCP versioning cycle but may adopt independent versioning as needed`]}),`\n`]}),`\n`,_jsxs(_components.p,{children:[`A list of supported extensions can be found in the `,_jsx(_components.a,{href:`https://github.com/modelcontextprotocol/ext-auth`,children:`MCP Authorization Extensions`}),` repository.`]})]})}function MDXContent(props={}){const{wrapper:MDXLayout}={..._provideComponents(),...props.components};return MDXLayout?_jsx(MDXLayout,{...props,children:_jsx(_createMdxContent,{...props})}):_createMdxContent(props)}return{default:MDXContent};function _missingMdxReference(id,component){throw new Error(`Expected `+(component?`component`:`object`)+\" `\"+id+\"` to be defined: you likely forgot to import, pass, or provide it.\")}","frontmatter":{},"scope":{"config":{},"pageMetadata":{"title":"Authorization","sidebarTitle":"Overview","description":null,"href":"/specification/2026-07-28/basic/authorization/index"}}},"mdxSourceWithNoJs":null},"mdxExtracts":{"tableOfContents":[{"title":"Introduction","slug":"introduction","depth":2,"children":[{"title":"Purpose and Scope","slug":"purpose-and-scope","depth":3,"children":[]},{"title":"Protocol Requirements","slug":"protocol-requirements","depth":3,"children":[]},{"title":"Standards Compliance","slug":"standards-compliance","depth":3,"children":[]}]},{"title":"Roles","slug":"roles","depth":2,"children":[]},{"title":"Overview","slug":"overview","depth":2,"children":[]},{"title":"Authorization Server Discovery","slug":"authorization-server-discovery","depth":2,"children":[]},{"title":"Client Registration","slug":"client-registration","depth":2,"children":[]},{"title":"Scope Selection Strategy","slug":"scope-selection-strategy","depth":2,"children":[]},{"title":"Authorization Flow Steps","slug":"authorization-flow-steps","depth":2,"children":[{"title":"Authorization Response Validation","slug":"authorization-response-validation","depth":3,"children":[]}]},{"title":"Resource Parameter Implementation","slug":"resource-parameter-implementation","depth":2,"children":[{"title":"Canonical Server URI","slug":"canonical-server-uri","depth":3,"children":[]}]},{"title":"Access Token Usage","slug":"access-token-usage","depth":2,"children":[{"title":"Token Requirements","slug":"token-requirements","depth":3,"children":[]},{"title":"Token Handling","slug":"token-handling","depth":3,"children":[]}]},{"title":"Refresh Tokens","slug":"refresh-tokens","depth":2,"children":[]},{"title":"Error Handling","slug":"error-handling","depth":2,"children":[{"title":"Scope Challenge Handling","slug":"scope-challenge-handling","depth":3,"children":[]},{"title":"Runtime Insufficient Scope Errors","slug":"runtime-insufficient-scope-errors","depth":4,"children":[]},{"title":"Step-Up Authorization Flow","slug":"step-up-authorization-flow","depth":4,"children":[]}]},{"title":"Security Considerations","slug":"security-considerations","depth":2,"children":[]},{"title":"MCP Authorization Extensions","slug":"mcp-authorization-extensions","depth":2,"children":[]}],"codeExamples":{}},"jsLinks":["/_mintlify/custom/mcp/e091f6927e8ff316/footer.js","/_mintlify/custom/mcp/539ab9218716af9b/version-warning.js"],"subdomain":"mcp","siteName":"Model Context Protocol","title":"Authorization - Model Context Protocol","navMaps":{"firstHrefInVersion":{"Version 2026-07-28 (latest)":{"href":"/specification/2026-07-28/basic/authorization/index","matchLevel":2},"Version 2025-11-25":{"href":"/specification/2025-11-25/basic/authorization","matchLevel":1},"Version 2025-06-18":{"href":"/specification/2025-06-18/basic/authorization","matchLevel":1},"Version 2025-03-26":{"href":"/specification/2025-03-26/basic/authorization","matchLevel":1},"Version 2024-11-05":{"href":"/specification/2024-11-05","matchLevel":3},"Draft":{"href":"/specification/draft","matchLevel":3}},"firstHrefInLanguage":{}},"lastModified":"2026-10-30T18:11:50.359Z","originalFileLocation":"specification/2026-07-28/basic/authorization/index.mdx"},"headHtml":"\u003cscript data-mint-head>(function(){var d=document.documentElement,p=null;if(!p){try{p=localStorage.getItem(\"isDarkMode\")}catch(e){}if(p==='true')p='dark';else if(p==='false')p='light';if(p!=='light'\u0026\u0026p!=='dark'\u0026\u0026p!=='system')p=\"system\"}var r=p==='system'?(matchMedia(\"(prefers-color-scheme: dark)\").matches?'dark':'light'):p;d.classList.remove(r==='dark'?'light':'dark');d.classList.add(r);d.setAttribute(\"data-theme-preference\",p)})();\u003c/script>\u003cmeta data-mint-head name=\"application-name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"generator\" content=\"Mintlify\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/android-chrome-192x192.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"apple-touch-icon\" type=\"image/png\" sizes=\"180x180\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/apple-touch-icon.png\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-16x16.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon-32x32.png\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/favicon.ico\" media=\"(prefers-color-scheme: light)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"192x192\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/android-chrome-192x192.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-16x16.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon-32x32.png\" media=\"(prefers-color-scheme: dark)\">\u003clink data-mint-head rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon-dark/favicon.ico\" media=\"(prefers-color-scheme: dark)\">\u003cmeta data-mint-head property=\"og:title\" content=\"Authorization - Model Context Protocol\">\u003cmeta data-mint-head property=\"og:site_name\" content=\"Model Context Protocol\">\u003cmeta data-mint-head property=\"og:url\" content=\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization\">\u003cmeta data-mint-head property=\"og:type\" content=\"website\">\u003cmeta data-mint-head property=\"og:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head property=\"og:image:width\" content=\"1200\">\u003cmeta data-mint-head property=\"og:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"twitter:card\" content=\"summary_large_image\">\u003cmeta data-mint-head name=\"twitter:title\" content=\"Authorization - Model Context Protocol\">\u003cmeta data-mint-head name=\"twitter:image\" content=\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\">\u003cmeta data-mint-head name=\"twitter:image:width\" content=\"1200\">\u003cmeta data-mint-head name=\"twitter:image:height\" content=\"630\">\u003cmeta data-mint-head name=\"msapplication-config\" content=\"/mintlify-assets/_mintlify/favicons/mcp/ebiVJzri-bsiCfVZ/_generated/favicon/browserconfig.xml\">\u003cmeta data-mint-head name=\"apple-mobile-web-app-title\" content=\"Model Context Protocol\">\u003cmeta data-mint-head name=\"msapplication-TileColor\" content=\"#09090b\">\u003clink data-mint-head rel=\"canonical\" href=\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization\">\u003clink data-mint-head rel=\"alternate\" type=\"application/xml\" href=\"/sitemap.xml\">\u003clink data-mint-head rel=\"alternate\" type=\"text/markdown\" href=\"/specification/2026-07-28/basic/authorization.md\">\u003cscript data-mint-head type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"@id\":\"https://modelcontextprotocol.io/#organization\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"logo\":{\"@type\":\"ImageObject\",\"url\":\"https://mintcdn.com/mcp/2BMHnlNW5OqOohXZ/logo/light.svg?fit=max\u0026auto=format\u0026n=2BMHnlNW5OqOohXZ\u0026q=85\u0026s=a5ac61ce77858fb1ddaf6de761c39499\"}},{\"@type\":\"WebSite\",\"@id\":\"https://modelcontextprotocol.io#website\",\"name\":\"Model Context Protocol\",\"url\":\"https://modelcontextprotocol.io\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"}},{\"@type\":\"WebPage\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#webpage\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization\",\"name\":\"Authorization\",\"dateModified\":\"2026-10-30T18:11:50.359Z\",\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"},\"breadcrumb\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#breadcrumb\"}},{\"@type\":\"BreadcrumbList\",\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#breadcrumb\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Base Protocol\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/index\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Authorization\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/index\"},{\"@type\":\"ListItem\",\"position\":3,\"name\":\"Authorization\",\"item\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization\"}]},{\"@type\":[\"Article\",\"TechArticle\"],\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#article\",\"headline\":\"Authorization\",\"name\":\"Authorization\",\"url\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization\",\"mainEntityOfPage\":{\"@id\":\"https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#webpage\"},\"image\":\"https://raw.githubusercontent.com/modelcontextprotocol/docs/2eb6171ddbfeefde349dc3b8d5e2b87414c26250/images/og-image.png\",\"dateModified\":\"2026-10-30T18:11:50.359Z\",\"publisher\":{\"@id\":\"https://modelcontextprotocol.io/#organization\"},\"isPartOf\":{\"@id\":\"https://modelcontextprotocol.io#website\"}}]}\u003c/script>","siteName":"Model Context Protocol","nav":{"global":null,"tabs":[{"tab":"Documentation","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"group":"Get started","pages":[{"title":"What is the Model Context Protocol (MCP)?","sidebarTitle":"What is MCP?","href":"/docs/2026-07-28/getting-started/intro"}]},{"group":"About MCP","pages":[{"title":"Architecture overview","sidebarTitle":"Architecture","href":"/docs/2026-07-28/learn/architecture"},{"title":"Understanding MCP servers","sidebarTitle":"Servers","href":"/docs/2026-07-28/learn/server-concepts"},{"title":"Understanding MCP clients","sidebarTitle":"Clients","href":"/docs/2026-07-28/learn/client-concepts"},{"title":"Versioning","href":"/docs/2026-07-28/learn/versioning"}]},{"group":"Develop with MCP","pages":[{"title":"Connect to local MCP servers","href":"/docs/2026-07-28/develop/connect-local-servers"},{"title":"Connect to remote MCP Servers","href":"/docs/2026-07-28/develop/connect-remote-servers"},{"title":"Build with Agent Skills","href":"/docs/2026-07-28/develop/build-with-agent-skills"},{"title":"Build an MCP server","href":"/docs/2026-07-28/develop/build-server"},{"group":"Clients","pages":[{"title":"Build an MCP client","href":"/docs/2026-07-28/develop/build-client"},{"title":"Client Best Practices","href":"/docs/2026-07-28/develop/clients/client-best-practices"}]},{"title":"SDKs","href":"/docs/2026-07-28/sdk"},{"group":"Security","pages":[{"title":"Understanding Authorization in MCP","href":"/docs/2026-07-28/tutorials/security/authorization"},{"title":"Security Best Practices","href":"/docs/2026-07-28/tutorials/security/security_best_practices"},{"title":"Local Server Security","href":"/docs/2026-07-28/tutorials/security/local-server-security"}]}]},{"group":"Developer tools","pages":[{"group":"Inspector","pages":[{"title":"MCP Inspector","href":"/docs/2026-07-28/tools/inspector"},{"title":"Web client","href":"/docs/2026-07-28/tools/inspector/web"},{"title":"CLI client","href":"/docs/2026-07-28/tools/inspector/cli"},{"title":"TUI client","href":"/docs/2026-07-28/tools/inspector/tui"},{"title":"mcpdo connection client","href":"/docs/2026-07-28/tools/inspector/mcpdo"},{"title":"Configuration and flags","href":"/docs/2026-07-28/tools/inspector/configuration"},{"title":"Authorization","href":"/docs/2026-07-28/tools/inspector/authorization"},{"title":"Protocol eras","href":"/docs/2026-07-28/tools/inspector/protocol-eras"},{"title":"Recipes","href":"/docs/2026-07-28/tools/inspector/recipes"},{"title":"Security","href":"/docs/2026-07-28/tools/inspector/security"}]},{"title":"Debugging","href":"/docs/2026-07-28/tools/debugging"}]},{"group":"Examples","pages":[{"title":"Example Servers","href":"/examples"}]}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/docs/2025-11-25/getting-started/intro"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/docs/2025-06-18/getting-started/intro"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/docs/2025-03-26/getting-started/intro"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/docs/2024-11-05/getting-started/intro"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/docs/draft/getting-started/intro"}]}]},{"tab":"Specification","versions":[{"version":"Version 2026-07-28 (latest)","default":true,"pages":[{"title":"Specification","href":"/specification/2026-07-28"},{"title":"Key Changes","href":"/specification/2026-07-28/changelog"},{"title":"Deprecated Features","href":"/specification/2026-07-28/deprecated"},{"title":"Architecture","href":"/specification/2026-07-28/architecture/index"},{"group":"Base Protocol","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/index"},{"title":"Versioning and Compatibility","href":"/specification/2026-07-28/basic/versioning"},{"group":"Message Patterns","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/patterns/index"},{"title":"Multi Round-Trip Requests","href":"/specification/2026-07-28/basic/patterns/mrtr"},{"title":"Subscriptions","href":"/specification/2026-07-28/basic/patterns/subscriptions"},{"title":"Cancellation","href":"/specification/2026-07-28/basic/patterns/cancellation"},{"title":"Progress","href":"/specification/2026-07-28/basic/patterns/progress"}]},{"group":"Transports","pages":[{"title":"Overview","href":"/specification/2026-07-28/basic/transports/index"},{"title":"stdio","href":"/specification/2026-07-28/basic/transports/stdio"},{"title":"Streamable HTTP","description":null,"href":"/specification/2026-07-28/basic/transports/streamable-http"}]},{"group":"Authorization","pages":[{"title":"Authorization","sidebarTitle":"Overview","href":"/specification/2026-07-28/basic/authorization/index"},{"title":"Authorization Server Discovery","description":null,"href":"/specification/2026-07-28/basic/authorization/authorization-server-discovery"},{"title":"Client Registration","href":"/specification/2026-07-28/basic/authorization/client-registration"},{"title":"Authorization Security Considerations","sidebarTitle":"Security Considerations","href":"/specification/2026-07-28/basic/authorization/security-considerations"}]}]},{"group":"Client Features","pages":[{"title":"Roots","href":"/specification/2026-07-28/client/roots"},{"title":"Sampling","href":"/specification/2026-07-28/client/sampling"},{"title":"Elicitation","href":"/specification/2026-07-28/client/elicitation"}]},{"group":"Server Features","pages":[{"title":"Overview","href":"/specification/2026-07-28/server/index"},{"title":"Discovery","href":"/specification/2026-07-28/server/discover"},{"title":"Prompts","href":"/specification/2026-07-28/server/prompts"},{"title":"Resources","href":"/specification/2026-07-28/server/resources"},{"title":"Tools","href":"/specification/2026-07-28/server/tools"},{"group":"Utilities","pages":[{"title":"Caching","href":"/specification/2026-07-28/server/utilities/caching"},{"title":"Completion","href":"/specification/2026-07-28/server/utilities/completion"},{"title":"Logging","href":"/specification/2026-07-28/server/utilities/logging"},{"title":"Pagination","href":"/specification/2026-07-28/server/utilities/pagination"}]}]},{"title":"Schema Reference","href":"/specification/2026-07-28/schema"}]},{"version":"Version 2025-11-25","pages":[{"title":"Version 2025-11-25","href":"/specification/2025-11-25/basic/authorization"}]},{"version":"Version 2025-06-18","pages":[{"title":"Version 2025-06-18","href":"/specification/2025-06-18/basic/authorization"}]},{"version":"Version 2025-03-26","pages":[{"title":"Version 2025-03-26","href":"/specification/2025-03-26/basic/authorization"}]},{"version":"Version 2024-11-05","pages":[{"title":"Version 2024-11-05","href":"/specification/2024-11-05"}]},{"version":"Draft","pages":[{"title":"Draft","href":"/specification/draft"}]}]},{"tab":"Extensions","pages":[{"title":"Extensions","href":"/extensions/overview"}]},{"tab":"Registry","pages":[{"title":"Registry","href":"/registry/about"}]},{"tab":"SEPs","pages":[{"title":"SEPs","href":"/seps"}]},{"tab":"Community","pages":[{"title":"Community","href":"/community/contributing"}]}]},"basePath":"","title":"Authorization - Model Context Protocol","buildId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","deploymentId":"dpl_G9nrg4qeJSZtah1Ziwbc2n6WkLch","dynamics":[],"chunks":[]}

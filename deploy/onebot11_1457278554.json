@@ -1,0 +1,43 @@
+{
+  "network": {
+    "httpServers": [
+      {
+        "name": "LocalMCP",
+        "enable": true,
+        "host": "127.0.0.1",
+        "port": 3000,
+        "enableCors": false,
+        "enableWebsocket": false,
+        "messagePostFormat": "array",
+        "token": "mcp-qq-2026",
+        "debug": false
+      }
+    ],
+    "websocketServers": [
+      {
+        "name": "LocalBot",
+        "enable": true,
+        "host": "127.0.0.1",
+        "port": 3001,
+        "enableForce": false,
+        "messagePostFormat": "array",
+        "reportSelfMessage": false,
+        "token": "",
+        "debug": false,
+        "heartInterval": 30000
+      }
+    ],
+    "websocketClients": [],
+    "plugins": []
+  },
+  "musicSignUrl": "",
+  "enableLocalFile2Url": false,
+  "parseMultMsg": false,
+  "imageDownloadProxy": "",
+  "timeout": {
+    "baseTimeout": 10000,
+    "uploadSpeedKBps": 256,
+    "downloadSpeedKBps": 256,
+    "maxTimeout": 1800000
+  }
+}

@@ -119,6 +119,17 @@ OneBot 把自己发出的回复再上报给 bot，bot 又回复，循环 3 轮�
 | 机器人日志 | 容器内 `/root/autoreply.log` |
 | 配置目录 | 容器内 `/root/Napcat/opt/QQ/resources/app/app_launcher/napcat/config` |
 
+## 6.5 MCP Server（Agent 框架接入层）
+
+架构：Agent 框架 ←MCP HTTP→ qq-mcp-server.py ←WS→ NapCat OneBot 3001 ←QQ→ 腾讯
+
+- 文件：`bot/qq-mcp-server.py`（纯标准库，零第三方依赖，仅 websockets）
+- 13 个 MCP 工具：私聊/群聊发消息、群管(禁言/踢人/名片/群名)、群列表/成员/信息、好友列表、最近消息
+- 传输：MCP JSON-RPC over POST `http://mi8:8000/mcp`（Bearer token 可选）
+- 常驻：root 身份，MIUI 不杀
+- 开机自启：已加入 `mi8-napcat-start.sh` 幂等拉起链
+- 配置：OneBot HTTP Server `127.0.0.1:3000` 已在 NapCat 配置中启用
+
 ## 8. 风控证据与官方口径（2026-10-31 调研）
 
 ### 仓库 issue 实证

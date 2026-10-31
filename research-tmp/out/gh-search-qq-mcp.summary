@@ -1,0 +1,16 @@
+total:46
+CCCpan/chinese-sensitive-words-mcp | 107* | 中文敏感词/违禁词检测 MCP Server | 支持小红书/抖音/快手/B站 | 风险分级+安全替换建议 | 微信: chenganp | 邮箱: 345048305@qq.com | 2026-03-15 | https://github.com/CCCpan/chinese-sensitive-words-mcp
+Shy2593666979/mcp-server-email | 81* | 一个基于 MCP (Model Context Protocol) 的邮件服务，支持 LLM 发送带附件的电子邮件及在指定目录中搜索文件。提供安全的 SMTP 传输、多收件人支持和附件模式匹配搜索功能，适用于 Gmail | 2025-04-27 | https://github.com/Shy2593666979/mcp-server-email
+firekula/mcp-inspector-bridge | 23* | MCP Inspector Bridge — 专为 Cocos Creator 2.4.x 打造的现代化运行时节点审查与 AI 桥接插件。基于 Vue 3 + TypeScript 构建双分栏调试面板，集节点树搜索、属性 | 2026-10-29 | https://github.com/firekula/mcp-inspector-bridge
+henry200803/mailbridge | 12* | Email MCP server for AI agents - full mailbox access for Claude, Codex, Cursor or any MCP client: search, read | 2026-08-10 | https://github.com/henry200803/mailbridge
+Samge0/mcp-qqmusic-test-server | 9* | 这是一个通过MCP（模块化控制协议）提供QQ音乐搜索功能的测试服务器。该服务器允许您使用关键词搜索音乐曲目，并返回相关歌曲信息。 | 2026-09-02 | https://github.com/Samge0/mcp-qqmusic-test-server
+baoozak/qqmusic-mcp | 7* | 本地运行的 QQ 音乐 MCP Server，支持歌单管理、音乐库分析、智能整理、歌曲搜索与歌词。 | 2026-08-17 | https://github.com/baoozak/qqmusic-mcp
+xuewolai/ima-mcp-server | 6* | IMA (ima.qq.com) knowledge base MCP server - search, browse, read notes, and add content to your IMA knowledge | 2026-07-20 | https://github.com/xuewolai/ima-mcp-server
+1018053166/sse-email-mcp-server | 5* | 基于 MCP 协议的邮件服务器，支持 SMTP/IMAP/POP3 协议，可发送和接收邮件。支持 Gmail、Outlook、QQ、163、126、Sina 等主流邮箱服务商，支持附件、HTML/文本格式，动态认证。完美 | 2026-02-09 | https://github.com/1018053166/sse-email-mcp-server
+print-yuhuan/QQ-MCP-Server | 3* |  | 2026-06-16 | https://github.com/print-yuhuan/QQ-MCP-Server
+Yotohime777/QQMusic-mcp | 3* | Windows QQ Music MCP server with playback control, search, and specified-track playback. | 2026-09-04 | https://github.com/Yotohime777/QQMusic-mcp
+mouse114514/Xadeus-QQ-MCP | 3* | QQ MCP Server - connect AI agents to QQ via NapCatQQ. Auto-wake, messaging, group management, file sharing, cr | 2026-08-22 | https://github.com/mouse114514/Xadeus-QQ-MCP
+SinoEdwards/mail-agent-mcp | 2* | Local-first email MCP server for Gmail and QQ Mail with secure OAuth, IMAP search/read, attachments, and previ | 2026-10-26 | https://github.com/SinoEdwards/mail-agent-mcp
+mrlong0129/wechat-article-fetcher | 2* | Read public WeChat Official Account (mp.weixin.qq.com) articles as clean Markdown/JSON. CLI + MCP server + age | 2026-10-07 | https://github.com/mrlong0129/wechat-article-fetcher
+shangguanyiyu0011/qq-mail-mcp | 1* | Self-hosted QQ Mail MCP server with OAuth, attachments and duplicate-send protection. | 2026-10-26 | https://github.com/shangguanyiyu0011/qq-mail-mcp
+ustc-taoyang/claude-qq-channel | 1* | Claude Code QQ Channel - MCP Server via QQ Official Bot API | 2026-03-20 | https://github.com/ustc-taoyang/claude-qq-channel
