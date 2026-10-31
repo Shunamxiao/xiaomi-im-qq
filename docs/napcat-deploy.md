@@ -85,6 +85,21 @@ OneBot 11 接口）：官方支持 Termux（proot-distro Debian + xvfb + QQ Linu
 - 观察到的后果均为掉线/重验证/个别冻结，未检索到永久封号自述，
   但样本有限，不能当作安全背书。
 
+### 已修复的自回复循环事故（2026-10-31）
+
+用小号(再度Miren)实测时发现自回复循环：bot 对测试消息回复后，
+OneBot 把自己发出的回复再上报给 bot，bot 又回复，循环 3 轮后因
+腾讯同文去重停止。根因两个，均已修复：
+
+1. onebot11 配置 `reportSelfMessage=true` → 改为 false（不再上报自己
+   发出的消息，用户从手机端发的消息也不会再进规则引擎）。
+2. 机器人 selfId 取自 heartbeat 的 `status.self_id`（NapCat 不携带）
+   → 改为取每个事件顶层的 `self_id`，并只在 `post_type=message` 时
+   进入规则引擎。
+
+规则语义同步收紧：`private.enabled=false`（私聊不自动回复），
+群聊关键词：前缀「有」+ 包含「下载/没找到」。
+
 ## 6. 风险
 
 - NapCat 属协议端机器人，账号存在被风控/限制的可能（官方文档亦有提示）；

@@ -53,11 +53,10 @@ function main() {
                 if (event.meta_event_type === "lifecycle") {
                     send("get_login_info", {});
                 }
-                if (event.post_type === "meta_event" && event.status) {
-                    selfId = event.status.self_id || selfId;
-                    return;
-                }
-                if (event.post_type !== "message" && event.post_type !== "message_sent") return;
+                if (event.post_type === "meta_event") return;
+                // 只处理普通消息；自己发出的回显(message_sent)一律忽略，防止自回复循环
+                if (event.post_type !== "message") return;
+                if (selfId === "" && String(event.self_id)) selfId = String(event.self_id);
                 const kind = event.message_type;
                 const text = (event.message || [])
                     .filter((seg) => seg.type === "text")
