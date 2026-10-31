@@ -1,2 +1,5 @@
 node_modules/
 *.log
+
+# 插件二开独立仓库（fork: Shunamxiao/napcat-plugin-template）
+plugin/

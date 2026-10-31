@@ -44,7 +44,7 @@ OneBot 11 接口）：官方支持 Termux（proot-distro Debian + xvfb + QQ Linu
   gethostname/uname）伪装为 **ZAIDU-5466**（本机电脑名）。
   QQ 登录设备管理里应显示为 ZAIDU-5466（可在手机QQ 设置→账号安全 里核对）。
 
-## 4. 自动回复机器人（已部署，默认关闭）
+## 4. 自动回复机器人（已退役，迁移至插件，见第 10 节）
 
 - OneBot 正向 WS：`127.0.0.1:3001`（仅本机，已写入
   `onebot11_1457278554.json`）。
@@ -170,3 +170,53 @@ OneBot 把自己发出的回复再上报给 bot，bot 又回复，循环 3 轮�
 - 可行路径：腾讯官方机器人平台（q.qq.com）——官方支持的频道机器人 API，
   无风控风险，但身份是审核过的机器人号而非个人号；需要单独注册与开发
   （官方 HTTP/WebSocket API，可包成同一套 MCP 工具对外）。
+
+## 10. NapCat 官方插件化（2026-10-31 第三轮，当前形态）
+
+自动回复已从外挂脚本迁移到 **NapCat 官方插件机制**（插件目录扫描 + plugins.json 启用开关），
+外挂 `autoreply.js` 已退役并从启动脚本移除。
+
+### 插件加载机制（逆向 napcat.mjs 得出）
+
+1. 插件目录：容器内
+   `/root/Napcat/opt/QQ/resources/app/app_launcher/napcat/plugins/<plugin-dir>/`。
+2. 入口识别：读 package.json 的 `name`/`main`，缺省依次尝试
+   `index.mjs / index.js / main.mjs / main.js`。
+3. **启用开关**：`config/plugins.json`（即
+   `.../napcat/config/plugins.json`），键为插件 `name`，值为布尔。
+   **文件不存在或插件未列出时默认禁用**（仅 `napcat-plugin-builtin` 例外）——
+   这就是「Scanned 1 plugins → Loaded 0 plugins」的根因。
+4. 白名单校验 `getRejectReason` 已在 napcat.mjs 69101 行改为恒返回 `null`
+   （绕过官方插件白名单 + 敏感词扫描）。
+5. 加载条件：`enable && runtime.status !== "error"`，随后 import 入口并调用
+   `plugin_init(ctx)`。
+
+### 当前部署的插件
+
+- `napcat-plugin-autoreply` v1.0.0（QQ自动回复）：关键词规则
+  （前缀"有"/包含"下载"/包含"没找到" → apks.cc 引导回复），
+  私聊/群聊开关、黑白名单、WebUI 配置面板（NapCatConfig schema）。
+- 源码：仓库 `plugin/`（官方 napcat-plugin 模板 fork），构建产物
+  `plugin/dist/index.mjs`，与远端部署文件 md5 一致
+  （0fd87fd97b1c847fbf6738e83c964e25）。
+
+### 部署/更新插件流程
+
+1. 本地 `plugin/` 改码 → `pnpm build`（产物 `plugin/dist/`）。
+2. `scp plugin/dist/index.mjs mi8:<termux-home>/`，再从 termux-home
+   cp 进容器插件目录（容器 /root 与 termux home 之间用
+   `astermux proot-distro login napcat -- cp` 或 bind 路径
+   `/data/data/com.termux/files/usr/var/lib/proot-distro/containers/napcat/rootfs/root/...`）。
+3. 确保 `config/plugins.json` 含 `{"napcat-plugin-autoreply": true}`。
+4. 重启 QQ：`pkill -f 'opt/QQ/qq'` 后跑 `/data/adb/bin/mi8-napcat-start.sh`。
+5. 验证：`grep -aE 'Plugin' napcat.out` 应看到
+   `Initialized plugin: napcat-plugin-autoreply v1.0.0` + `Loaded 1 plugins`。
+
+### 排障记录
+
+- **Loaded 0 plugins**：plugins.json 缺失/插件未列入 → 默认 disabled。
+- **QQ 起不来且日志不刷新**：残留孤儿 Xvfb/proot 容器干扰
+  （曾出现 Xvfb :1 容器占位）。清理 `ps -eo pid,args | grep Xvfb` 中的孤儿
+  proot 容器后重跑启动脚本即可。
+- **napcat.out 无新时间戳** = QQ 根本没重启，先查进程再查日志。
+
