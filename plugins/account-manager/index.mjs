@@ -145,6 +145,12 @@ const plugin_init = async (ctx) => {
   state.ctx = ctx;
   try { Object.assign(state.config, JSON.parse(fs.readFileSync(ctx.configPath, 'utf8'))); } catch {}
   ctx.logger.info('账号管理插件就绪');
+  plugin_config_ui = ctx.NapCatConfig.combine(
+    ctx.NapCatConfig.html('<div style="padding:12px;background:#eef2ff;border-radius:8px;font-size:13px">账号管理：查看状态 / 切换历史账号 / 扫码添加账号。管理页: /plugin/napcat-plugin-account/api/page?key=…</div>'),
+    ctx.NapCatConfig.number('webuiPort', 'WebUI 端口', 6099, 'NapCat WebUI 端口'),
+    ctx.NapCatConfig.text('webuiToken', 'WebUI Token', 'x524980520', '用于调用 WebUI 登录接口'),
+    ctx.NapCatConfig.text('accessKey', '页面访问 Key', 'x524980520', '管理页与操作接口的访问密钥')
+  );
   ctx.router.getNoAuth('/status', async (req, res) => {
     if (!checkKey(req, req.url)) return res.status(401).json({ error: 'key 无效' });
     try { res.json(await buildStatus()); } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
@@ -187,12 +193,7 @@ const plugin_init = async (ctx) => {
   });
 };
 
-const plugin_config_ui = (ctx) => ctx.NapCatConfig.combine(
-  ctx.NapCatConfig.html('<div style="padding:12px;background:#eef2ff;border-radius:8px;font-size:13px">账号管理：查看状态 / 切换历史账号 / 扫码添加账号。管理页: /plugin/napcat-plugin-account/page?key=…</div>'),
-  ctx.NapCatConfig.number('webuiPort', 'WebUI 端口', 6099, 'NapCat WebUI 端口'),
-  ctx.NapCatConfig.text('webuiToken', 'WebUI Token', 'x524980520', '用于调用 WebUI 登录接口'),
-  ctx.NapCatConfig.text('accessKey', '页面访问 Key', 'x524980520', '管理页与操作接口的访问密钥')
-);
+let plugin_config_ui = [];
 
 const plugin_get_config = async () => state.config;
 const plugin_set_config = async (_ctx, config) => { state.config = { ...DEFAULT_CONFIG, ...config }; };
