@@ -104,78 +104,94 @@ const pageHtml = () => '<!doctype html><html lang=zh><head><meta charset=utf-8><
   + '<scr' + 'ipt>' + pageJs() + '</scr' + 'ipt></body></html>';
 
 function pageJs() {
-  return [
-    'let K = new URLSearchParams(location.search).get("key") || localStorage.getItem("acctKey") || "";',
-    'function saveKey(k){ K = String(k || "").trim(); if (!K) return; localStorage.setItem("acctKey", K); refresh(); }',
-    'const Q = k => "/plugin/' + PLUGIN_ID + '/api/" + k + (K ? "?key=" + encodeURIComponent(K) : "");',
-    'let st = null, insts = null;',
-    'const esc = s => String(s == null ? "" : s).replace(/[<>&\\\"]+/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;","\\\"":"&quot;"}[c]));',
-    'async function refresh(){ let unauthorized = false; try { let r1 = await fetch(Q("status")); if (r1.status === 401) unauthorized = true; else st = await r1.json(); if (!unauthorized) { try { let r2 = await fetch(Q("instances")); if (r2.status === 401) unauthorized = true; else insts = await r2.json(); } catch(e){ insts = {error: String(e)}; } } } catch(e){} if (unauthorized) { showKey(); return; } render(); }',
-    'function showKey(){ document.getElementById("app").innerHTML = "<div class=card><h2>访问密钥</h2><p class=muted>输入管理密钥(即插件配置中的『页面访问 Key』),将保存在本浏览器,之后无需重复输入。</p><input id=kin type=password placeholder=访问密钥> <button onclick=saveKey(document.getElementById(\"kin\").value)>进入</button></div>"; }',
-    'async function post(k, body){ const r = await fetch(Q(k), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(Object.assign({key: K}, body||{})) }); return r.json(); }',
-    'function render(){',
-    '  const a = document.getElementById("app");',
-    '  if (!st) { a.textContent = "主实例状态加载失败"; } else {',
-    '  const L = st.login;',
-    '  let html = "<div class=card><h2>主实例 " + esc(st.self ? st.self.uin : "") + "</h2>";',
-    '  if (st.self) { html += "<div class=row><img class=avatar src=" + JSON.stringify(st.self.avatarUrl || "") + ">"',
-    '    + "<div style=flex:1><b>" + esc(st.self.nick) + "</b> <span class=\"tag " + (st.self.online ? "ok" : "warn") + "\">" + (st.self.online ? "在线" : "离线") + "</span>"',
-    '    + "<div class=meta>OneBot ws://127.0.0.1:3001 · 自动登录: " + esc(st.autoLoginAccount || "未设置") + "</div></div></div>"; }',
-    '  else html += "<p class=muted>主实例未登录（phase: " + esc(L.phase) + "）</p>";',
-    '  if (Array.isArray(st.quickList) && st.quickList.length) {',
-    '    html += "<div class=meta style=margin:6px 0>历史登录账号（单实例切换，会重启主实例）</div>";',
-    '    for (const u of st.quickList) {',
-    '      const uin = String(u.uin == null ? u : u.uin);',
-    '      const nick = u.nickName || u.nick || "";',
-    '      html += "<div class=row><div style=flex:1><b>" + esc(uin) + "</b> " + esc(nick) + "</div>"',
-    '        + (st.self && st.self.uin === uin ? "<span class=\"tag ok\">当前</span>" : "<button onclick=doSwitch(\'" + uin + "\')>切换</button>") + "</div>";',
-    '    }',
-    '  }',
-    '  html += "<div style=margin-top:10px><button class=danger onclick=doAdd() id=addbtn>主实例扫码添加账号</button>"',
-    '    + (st.self && st.self.uin ? " <button class=gray onclick=doSetAuto()>设 " + esc(st.self.uin) + " 为自动登录</button>" : "") + "</div></div>";',
-    '  a.innerHTML = html;',
-    '  const qr = document.getElementById("qr"), qb = document.getElementById("qrbody");',
-    '  if (!L.isLogin && L.qrcodeurl) { qr.style.display = "block"; qb.innerHTML = "<img src=" + JSON.stringify(esc(L.qrcodeurl)) + ">"; }',
-    '  else if (!L.isLogin) { qr.style.display = "block"; qb.textContent = "等待二维码… 阶段: " + (L.phase || "无") + (L.error ? " / " + L.error : ""); }',
-    '  else qr.style.display = "none";',
-    '  }',
-    '  renderInstances();',
-    '}',
-    'function renderInstances(){',
-    '  const box = document.getElementById("inst");',
-    '  if (!insts) return;',
-    '  if (insts.error) { box.innerHTML = "<div class=card><h2>多账号实例</h2><p class=muted>加载失败: " + esc(insts.error) + "（检查容器内 /root/qq-accounts/manager.js）</p></div>"; return; }',
-    '  const list = Array.isArray(insts) ? insts : (insts.instances || []);',
-    '  let html = "<div class=card><h2>多账号实例</h2>";',
-    '  for (const it of list) {',
-    '    const isMain = it.name === "main";',
-    '    const stateTag = it.running ? (it.login.isLogin ? "<span class=\"tag ok\">在线</span>" : "<span class=\"tag warn\">运行中·未登录</span>") : "<span class=\"tag off\">已停止</span>";',
-    '    const onebot = it.onebotPort ? " <span class=\"tag " + (it.onebotOk ? "ok" : "off") + "\">OneBot " + it.onebotPort + (it.onebotOk ? " ✓" : " ✗") + "</span>" : "";',
-    '    const qr = (!isMain && it.running && !it.login.isLogin && it.login.qrcodeurl)',
-    '      ? "<div class=inst-qr style=margin:8px 0><img src=" + JSON.stringify(esc(it.login.qrcodeurl)) + "></div>" : "";',
-    '    html += "<div class=row><div style=flex:1;min-width:200px><b>" + esc(it.name) + "</b> " + (it.uin ? esc(it.uin) : "<i class=muted>未绑定</i>")',
-    '      + " " + stateTag + onebot',
-    '      + "<div class=meta>WebUI :" + it.webuiPort + (it.autologin ? " · 自动登录" : "") + (it.login.phase && !it.login.isLogin ? " · " + esc(it.login.phase) : "") + "</div></div>"',
-    '      + (isMain ? "" : (it.running',
-    '        ? "<button class=danger onclick=doInstStop(\'" + it.name + "\')>停止</button>"',
-    '        : "<button onclick=doInstStart(\'" + it.name + "\')>启动</button>")) + "</div>" + qr;',
-    '  }',
-    '  html += "<div style=margin-top:10px><button onclick=doInstAdd()>+ 添加新账号（独立实例）</button>',
-    '    <span class=muted>新实例需扫码登录，登录后自动绑定并开启 OneBot</span></div>";',
-    '  html += "</div>";',
-    '  box.innerHTML = html;',
-    '}',
-    'async function doSwitch(uin){ if (!confirm("切换到 " + uin + "？将重启主实例并退出当前账号。")) return; const r = await post("switch", {uin}); alert(r.ok ? "已发起切换，页面将在重启后自动恢复" : "失败: " + r.error); setTimeout(refresh, 5000); }',
-    'async function doAdd(){ if (!confirm("确定扫码添加新账号？将重启主实例并退出当前账号！\n（如需不影响主账号，请用下方「添加新账号」）")) return; const r = await post("add"); if (r.ok) { alert("正在重启，稍后此页会出现二维码"); setTimeout(refresh, 8000); } else alert("失败: " + r.error); }',
-    'async function doSetAuto(){ if (!st.self || !st.self.uin) return; const r = await post("set-auto", {uin: st.self.uin}); alert(r.ok ? "已设置自动登录: " + st.self.uin : "失败: " + r.error); refresh(); }',
-    'async function doInstAdd(){ if (!confirm("创建新的 QQ 实例并进入扫码登录？主实例不受影响。")) return;',
-    '  const r = await post("instance-add");',
-    '  if (r.ok) { alert("实例 " + r.name + " 已创建并启动（WebUI :" + r.webuiPort + "），稍后列表中会出现扫码二维码"); refresh(); }',
-    '  else alert("失败: " + r.error); }',
-    'async function doInstStart(name){ const r = await post("instance-start", {name}); alert(r.ok ? "已启动" : "失败: " + r.error); refresh(); }',
-    'async function doInstStop(name){ if (!confirm("停止实例 " + name + "？")) return; const r = await post("instance-stop", {name}); alert(r.ok ? "已停止" : "失败: " + r.error); refresh(); }',
-    'refresh(); setInterval(refresh, 4000);'
-  ].join('\n');
+  const js = [`
+    let K = new URLSearchParams(location.search).get("key") || localStorage.getItem("acctKey") || "";
+    const Q = k => "/plugin/napcat-plugin-account/api/" + k + (K ? "?key=" + encodeURIComponent(K) : "");
+    let st = null, insts = null;
+    const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    async function refresh(){
+      let unauthorized = false;
+      try {
+        const r1 = await fetch(Q("status"));
+        if (r1.status === 401) unauthorized = true; else st = await r1.json();
+        if (!unauthorized) {
+          try { const r2 = await fetch(Q("instances")); if (r2.status === 401) unauthorized = true; else insts = await r2.json(); } catch(e){ insts = {error: String(e)}; }
+        }
+      } catch(e){}
+      if (unauthorized) { showKey(); return; }
+      render();
+    }
+    function showKey(){
+      document.getElementById("app").innerHTML = '<div class="card"><h2>访问密钥</h2><p class="muted">输入管理密钥(即插件配置中的「页面访问 Key」),将保存在本浏览器,之后无需重复输入。</p><input id="kin" type="password" placeholder="访问密钥"> <button id="kbtn">进入</button></div>';
+      const go = () => saveKey(document.getElementById("kin").value);
+      document.getElementById("kbtn").onclick = go;
+      document.getElementById("kin").addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+    }
+    function saveKey(k){ K = String(k || "").trim(); if (!K) return; localStorage.setItem("acctKey", K); refresh(); }
+    async function post(k, body){
+      const r = await fetch(Q(k), { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(Object.assign({key: K}, body || {})) });
+      return r.json();
+    }
+    function render(){
+      const a = document.getElementById("app");
+      const L = (st && st.login) || {};
+      let html = "";
+      if (L.isLogin && st.self) {
+        html += '<div class="card"><h2>主实例账号</h2><div class="row">';
+        if (st.self.avatarUrl) html += '<img class="avatar" src="' + esc(st.self.avatarUrl) + '">';
+        html += '<div><b>' + esc(st.self.nick) + '</b> <span class="tag">' + esc(st.self.uin) + '</span> <span class="tag ' + (st.self.online ? "ok" : "warn") + '">' + (st.self.online ? "在线" : "离线") + '</span></div></div>';
+        html += '<p class="muted">自动登录账号: ' + (st.autoLoginAccount ? esc(st.autoLoginAccount) : "未设置(重启后需扫码)") + '</p></div>';
+      } else {
+        html += '<div class="card"><h2>主实例状态</h2><p>' + (L.error ? esc(L.error) : "未登录,阶段: " + esc(L.phase || "unknown")) + '</p></div>';
+      }
+      if (Array.isArray(st.quickList) && st.quickList.length) {
+        html += '<div class="card"><h2>历史登录账号(快速切换)</h2>';
+        for (const u of st.quickList) {
+          const uin = String(u.uin == null ? u : u.uin);
+          const nick = u.nickName || u.nick || "";
+          html += '<div class="row"><div style="flex:1"><b>' + esc(uin) + "</b> " + esc(nick) + "</div>";
+          if (st.self && st.self.uin === uin) html += '<span class="tag ok">当前</span>';
+          else html += '<button data-act="switch" data-name="' + esc(uin) + '">切换</button>';
+          html += "</div>";
+        }
+        html += "</div>";
+      }
+      html += '<div class="card"><h2>添加账号(独立实例)</h2><p class="muted">创建新的 QQ 实例(独立数据/端口),启动后页面显示二维码,用新 QQ 号扫码登录。主实例不受影响。</p>';
+      html += '<button data-act="inst-add">+ 添加新账号实例</button></div>';
+      if (Array.isArray(insts) && insts.length) {
+        html += '<div class="card"><h2>多实例列表</h2>';
+        for (const it of insts) {
+          html += '<div class="row"><div style="flex:1"><b>' + esc(it.name) + '</b> <span class="tag ' + (it.running ? "ok" : "") + '">' + (it.running ? "运行中" : "已停止") + '</span></div>';
+          if (it.running) html += '<button class="danger" data-act="inst-stop" data-name="' + esc(it.name) + '">停止</button>';
+          else html += '<button data-act="inst-start" data-name="' + esc(it.name) + '">启动</button>';
+          html += "</div>";
+        }
+        html += "</div>";
+      }
+      a.innerHTML = html;
+      const qr = document.getElementById("qr"), qb = document.getElementById("qrbody");
+      if (!L.isLogin && L.qrcodeurl) { qr.style.display = "block"; qb.innerHTML = '<img src="' + esc(L.qrcodeurl) + '">'; }
+      else if (!L.isLogin) { qr.style.display = "block"; qb.textContent = "等待二维码… 阶段: " + (L.phase || "无") + (L.error ? " / " + L.error : ""); }
+      else qr.style.display = "none";
+    }
+    async function doSwitch(name){ if (!confirm("切换到 " + name + "?将重启 NapCat 并退出当前账号。")) return; const r = await post("switch", {uin: name}); alert(r.ok ? "已发起切换" : "失败: " + r.error); setTimeout(refresh, 5000); }
+    async function doInstAdd(){ if (!confirm("创建新账号实例?")) return; const r = await post("instance-add"); if (r.ok || r.name) { alert("已创建并启动,稍后页面出现二维码"); setTimeout(refresh, 6000); } else alert("失败: " + (r.error || JSON.stringify(r).slice(0,120))); }
+    async function doInstStart(name){ const r = await post("instance-start", {name}); alert(r.ok ? "已启动" : "失败: " + r.error); setTimeout(refresh, 5000); }
+    async function doInstStop(name){ if (!confirm("停止实例 " + name + "?")) return; const r = await post("instance-stop", {name}); alert(r.ok ? "已停止" : "失败: " + r.error); setTimeout(refresh, 5000); }
+    document.addEventListener("click", e => {
+      const el = e.target.closest("[data-act]");
+      if (!el) return;
+      const act = el.getAttribute("data-act");
+      const name = el.getAttribute("data-name") || "";
+      if (act === "switch") doSwitch(name);
+      else if (act === "inst-add") doInstAdd();
+      else if (act === "inst-start") doInstStart(name);
+      else if (act === "inst-stop") doInstStop(name);
+    });
+    refresh();
+    setInterval(refresh, 4000);
+  `].join("\n");
+  return js;
 }
 
 const plugin_init = async (ctx) => {
