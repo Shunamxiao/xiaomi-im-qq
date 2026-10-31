@@ -17,7 +17,7 @@ OneBot 11 接口）：官方支持 Termux（proot-distro Debian + xvfb + QQ Linu
 2. 绕过 `xvfb-run` 在 proot 下的 `expected absolute path` bug：
    手动 `Xvfb :0 &` + `DISPLAY=:0 qq --no-sandbox`。
 3. 以 Termux 侧 `screen -dmS napcat` 脱管启动（SSH 断开不影响）。
-4. WebUI 已确认：`http://[::]:6099/webui?token=b97e257658fe`。
+4. WebUI 已确认：`http://mi.theworld.codes:6099/webui?token=x524980520（WebUI 密钥已固化为 x524980520，2026-10-31）`。
 
 ### 审计修复（2026-10-31 第二轮）
 
@@ -113,7 +113,7 @@ OneBot 把自己发出的回复再上报给 bot，bot 又回复，循环 3 轮�
 | --- | --- |
 | 容器 | `proot-distro login napcat` |
 | NapCat 日志 | 容器内 `/root/napcat.out` |
-| WebUI | `http://[::]:6099/webui` token `b97e257658fe` |
+| WebUI | `http://[::]:6099/webui` token `x524980520`（固定密钥，登录接口校验 sha256(token+".napcat")） |
 | 启动脚本 | `/data/adb/bin/mi8-napcat-start.sh`（root 常驻 + 机器人自启） |
 | 开机自启 | `/data/adb/service.d/mi8-napcat.sh` |
 | 机器人日志 | 容器内 `/root/autoreply.log` |
