@@ -13,7 +13,7 @@ $MP --live "allow magisk app_data_file dir { create add_name remove_name open re
 [ -d "$SD" ] && chmod 1777 "$SD"
 
 if ! pgrep -f "[o]pt/QQ/qq" >/dev/null 2>&1; then
-    TERM=xterm setsid nohup "$P" login napcat -- bash -c 'Xvfb :0 -screen 0 1280x720x24 >/root/xvfb.out 2>&1 & sleep 2; DISPLAY=:0 LD_PRELOAD=/usr/lib/fakehost.so /root/Napcat/opt/QQ/qq --no-sandbox --disable-dev-shm-usage -q 1457278554 >/root/napcat.out 2>&1' >/dev/null 2>&1 </dev/null &
+    TERM=xterm setsid nohup "$P" login napcat -- bash -c 'Xvfb :0 -screen 0 1280x720x24 >/root/xvfb.out 2>&1 & sleep 2; DISPLAY=:0 LD_PRELOAD=/usr/lib/fakehost.so /root/Napcat/opt/QQ/qq --no-sandbox --disable-dev-shm-usage >/root/napcat.out 2>&1' >/dev/null 2>&1 </dev/null &
     sleep 8
 fi
 
