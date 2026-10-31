@@ -1,0 +1,15 @@
+{
+  "enabled": false,
+  "keywords": [
+    { "match": "在吗", "reply": "在的，有事请留言～" }
+  ],
+  "private": {
+    "enabled": true,
+    "defaultReply": "【自动回复】我现在不在，稍后回复你。",
+    "whitelist": []
+  },
+  "group": {
+    "enabled": false,
+    "whitelist": []
+  }
+}
