@@ -101,17 +101,28 @@ function rawRequest(port, path, body, headers) {
   });
 }
 const credCache = new Map(); // webuiPort -> {token, cred, time}
+async function loginInstance(inst, token) {
+  const r = await rawRequest(inst.webuiPort, '/api/auth/login', { hash: crypto.createHash('sha256').update(token + '.napcat').digest('hex') });
+  const cred = (r.data && r.data.Credential) || r.Credential;
+  if (r.code !== 0 || !cred) throw new Error('实例 WebUI 登录失败: ' + (r.message || 'unknown'));
+  const cached = { token, cred, time: Date.now() };
+  credCache.set(inst.webuiPort, cached);
+  return cached;
+}
 async function webuiCall(inst, path, body) {
   const token = readWebuiToken(inst);
   let cached = credCache.get(inst.webuiPort);
   if (!cached || cached.token !== token || Date.now() - cached.time > 50 * 60 * 1000) {
-    const r = await rawRequest(inst.webuiPort, '/api/auth/login', { hash: crypto.createHash('sha256').update(token + '.napcat').digest('hex') });
-    const cred = (r.data && r.data.Credential) || r.Credential;
-    if (r.code !== 0 || !cred) throw new Error('实例 WebUI 登录失败: ' + (r.message || 'unknown'));
-    cached = { token, cred, time: Date.now() };
-    credCache.set(inst.webuiPort, cached);
+    cached = await loginInstance(inst, token);
   }
-  return rawRequest(inst.webuiPort, path, body || {}, { Authorization: 'Bearer ' + cached.cred });
+  let r = await rawRequest(inst.webuiPort, path, body || {}, { Authorization: 'Bearer ' + cached.cred });
+  // 实例重启后 secret 变化会使旧凭证失效(HTTP 200 + code:-1),自动重新登录重试一次
+  if (r && r.code === -1) {
+    credCache.delete(inst.webuiPort);
+    cached = await loginInstance(inst, token);
+    r = await rawRequest(inst.webuiPort, path, body || {}, { Authorization: 'Bearer ' + cached.cred });
+  }
+  return r;
 }
 function tcpProbe(port, timeout = 1500) {
   return new Promise(resolve => {
