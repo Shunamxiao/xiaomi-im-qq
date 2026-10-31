@@ -105,11 +105,13 @@ const pageHtml = () => '<!doctype html><html lang=zh><head><meta charset=utf-8><
 
 function pageJs() {
   return [
-    'const K = new URLSearchParams(location.search).get("key") || "";',
+    'let K = new URLSearchParams(location.search).get("key") || localStorage.getItem("acctKey") || "";',
+    'function saveKey(k){ K = String(k || "").trim(); if (!K) return; localStorage.setItem("acctKey", K); refresh(); }',
     'const Q = k => "/plugin/' + PLUGIN_ID + '/api/" + k + (K ? "?key=" + encodeURIComponent(K) : "");',
     'let st = null, insts = null;',
     'const esc = s => String(s == null ? "" : s).replace(/[<>&\\\"]+/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;","\\\"":"&quot;"}[c]));',
-    'async function refresh(){ try { st = await (await fetch(Q("status"))).json(); } catch(e){} try { insts = await (await fetch(Q("instances"))).json(); } catch(e){ insts = {error: String(e)}; } render(); }',
+    'async function refresh(){ let unauthorized = false; try { let r1 = await fetch(Q("status")); if (r1.status === 401) unauthorized = true; else st = await r1.json(); if (!unauthorized) { try { let r2 = await fetch(Q("instances")); if (r2.status === 401) unauthorized = true; else insts = await r2.json(); } catch(e){ insts = {error: String(e)}; } } } catch(e){} if (unauthorized) { showKey(); return; } render(); }',
+    'function showKey(){ document.getElementById("app").innerHTML = "<div class=card><h2>访问密钥</h2><p class=muted>输入管理密钥(即插件配置中的『页面访问 Key』),将保存在本浏览器,之后无需重复输入。</p><input id=kin type=password placeholder=访问密钥> <button onclick=saveKey(document.getElementById(\"kin\").value)>进入</button></div>"; }',
     'async function post(k, body){ const r = await fetch(Q(k), { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(Object.assign({key: K}, body||{})) }); return r.json(); }',
     'function render(){',
     '  const a = document.getElementById("app");',
@@ -181,11 +183,16 @@ const plugin_init = async (ctx) => {
   try { Object.assign(state.config, JSON.parse(fs.readFileSync(ctx.configPath, 'utf8'))); } catch {}
   ctx.logger.info('账号管理插件就绪');
   plugin_config_ui = ctx.NapCatConfig.combine(
-    ctx.NapCatConfig.html('<div style="padding:12px;background:#eef2ff;border-radius:8px;font-size:13px">账号管理：主实例状态/切换/扫码 + 多账号独立实例（多实例需容器内 /root/qq-accounts/manager.js 与宿主 bridge）。管理页: /plugin/napcat-plugin-account/api/page?key=…</div>'),
+    ctx.NapCatConfig.html('<div style="padding:12px;background:#eef2ff;border-radius:8px;font-size:13px">账号管理功能在 WebUI 侧边栏「账号管理」页面(主实例状态/历史账号切换/多实例添加/扫码登录)。本面板仅配置连接参数;'),
     ctx.NapCatConfig.number('webuiPort', 'WebUI 端口', 6099, '主实例 NapCat WebUI 端口'),
     ctx.NapCatConfig.text('webuiToken', 'WebUI Token', 'x524980520', '用于调用主实例 WebUI 登录接口'),
     ctx.NapCatConfig.text('accessKey', '页面访问 Key', 'x524980520', '管理页与操作接口的访问密钥')
   );
+  // WebUI 侧边栏页面:管理界面写盘后注册
+  try {
+    fs.writeFileSync(ctx.pluginPath + '/dashboard.html', pageHtml());
+    ctx.router.page({ title: '账号管理', path: 'dashboard', htmlFile: 'dashboard.html', icon: '👤', description: '主实例状态 / 历史账号切换 / 多实例管理' });
+  } catch (e) { ctx.logger.warn('注册侧边栏页面失败:', e && e.message); }
   ctx.router.getNoAuth('/status', async (req, res) => {
     if (!checkKey(req, req.url)) return res.status(401).json({ error: 'key 无效' });
     try { res.json(await buildStatus()); } catch (e) { res.status(500).json({ error: String((e && e.message) || e) }); }
