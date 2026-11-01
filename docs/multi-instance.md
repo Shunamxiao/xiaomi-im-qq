@@ -60,3 +60,22 @@ proot 容器内多 QQ 实例**可行**，已落地为 account-manager 插件的�
 - 监听 `::`(IPv6 双栈):8899(CONFIG:~/.config 见 docs/ai-integration.md),可选 `MCP_TOKEN`。
 - 工具 24 个:新增 qq_instances / qq_instance_add / qq_instance_start /
   qq_instance_stop / qq_instance_delete / qq_instance_qr。
+
+## 15. 自动回复配置专页 + 正则匹配（2026-11-01）
+
+### 新增能力
+
+- 关键词规则 matchType 新增 **regex**（另含 contains/prefix），全局规则与群级规则都支持；
+  正则超过 300 字符跳过，编译失败按不命中处理，忽略大小写。
+- autoreply 新增独立配置专页：`/plugin/napcat-plugin-autoreply/page/settings`，
+  出现在 WebUI「扩展页面」列表（QQ自动回复 / 自动回复配置）。
+  页面含：总开关、私聊开关+兜底、关键词规则表（含正则）、群聊开关/仅@/冷却/延迟、
+  群级规则 JSON。读写本插件 /api/config。
+- 插件 settingsPage 改为 settings：插件管理里点「插件配置」直接进入该专页。
+- 账号配置中心（account 插件）规则类型下拉同步支持「正则」。
+
+### 注意
+
+- 配置专页 HTML 由插件 init 时写盘（settings.html）并注册 page；
+  页面 JS 采用事件委托、内联 toast（iframe 沙箱无 alert/confirm）。
+- 部署后验证：page 200 + 内嵌 JS node --check 通过 + extensionPages 含 settings。

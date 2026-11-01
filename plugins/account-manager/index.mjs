@@ -332,7 +332,7 @@ function pageJs() {
       k = k || {};
       return '<div class="kw">'
         + '<input class="kw-match" placeholder="匹配词" value="' + esc(k.match || "") + '">'
-        + '<select class="kw-type"><option value="contains"' + (k.matchType === "prefix" ? "" : " selected") + '>包含</option><option value="prefix"' + (k.matchType === "prefix" ? " selected" : "") + '>前缀</option></select>'
+        + '<select class="kw-type"><option value="contains"' + (k.matchType === "prefix" || k.matchType === "regex" ? "" : " selected") + '>包含</option><option value="prefix"' + (k.matchType === "prefix" ? " selected" : "") + '>前缀</option><option value="regex"' + (k.matchType === "regex" ? " selected" : "") + '>正则</option></select>'
         + '<button class="danger" data-act="kw-del">删除</button>'
         + '<textarea class="kw-reply" rows="2" placeholder="回复内容（可含 |）">' + esc(k.reply || "") + '</textarea>'
         + '</div>';
@@ -419,7 +419,7 @@ function pageJs() {
       rules.cfg.keywords = Array.from(document.querySelectorAll("#r-kw .kw")).map(function(row){
         return {
           match: row.querySelector(".kw-match").value,
-          matchType: row.querySelector(".kw-type").value === "prefix" ? "prefix" : "contains",
+          matchType: row.querySelector(".kw-type").value === "prefix" ? "prefix" : row.querySelector(".kw-type").value === "regex" ? "regex" : "contains",
           reply: row.querySelector(".kw-reply").value
         };
       });
@@ -463,7 +463,7 @@ function pageJs() {
       for (let i = 0; i < rows.length; i++) {
         const match = rows[i].querySelector(".kw-match").value.trim();
         const reply = rows[i].querySelector(".kw-reply").value.trim();
-        const type = rows[i].querySelector(".kw-type").value === "prefix" ? "prefix" : "contains";
+        const type = rows[i].querySelector(".kw-type").value === "prefix" ? "prefix" : rows[i].querySelector(".kw-type").value === "regex" ? "regex" : "contains";
         if (!match && !reply) continue;
         if (!match || !reply) throw new Error("第 " + (i + 1) + " 条关键词规则需同时填写匹配词和回复");
         keywords.push({ match: match, matchType: type, reply: reply });
@@ -486,7 +486,7 @@ function pageJs() {
             for (let j = 0; j < rule.keywords.length; j++) {
               const k = rule.keywords[j];
               if (!k || typeof k !== "object" || typeof k.match !== "string" || typeof k.reply !== "string" || !k.match.trim() || !k.reply.trim()) throw new Error("群 " + gid + " 第 " + (j + 1) + " 条关键词规则不完整");
-              if (k.matchType !== undefined && k.matchType !== "contains" && k.matchType !== "prefix") throw new Error("群 " + gid + " 第 " + (j + 1) + " 条 matchType 只能是 contains/prefix");
+              if (k.matchType !== undefined && k.matchType !== "contains" && k.matchType !== "prefix" && k.matchType !== "regex") throw new Error("群 " + gid + " 第 " + (j + 1) + " 条 matchType 只能是 contains/prefix/regex");
             }
           }
         }
