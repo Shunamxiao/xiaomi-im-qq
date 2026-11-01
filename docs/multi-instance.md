@@ -79,3 +79,32 @@ proot 容器内多 QQ 实例**可行**，已落地为 account-manager 插件的�
 - 配置专页 HTML 由插件 init 时写盘（settings.html）并注册 page；
   页面 JS 采用事件委托、内联 toast（iframe 沙箱无 alert/confirm）。
 - 部署后验证：page 200 + 内嵌 JS node --check 通过 + extensionPages 含 settings。
+
+## 16. 群级规则可视化 + 图片回复 + 多账号防重复（2026-11-01）
+
+### 配置专页增强
+
+- 「群级规则」由 JSON 文本框改为可视化编辑器：按群添加，可设 enabled / atOnly /
+  专属关键词（匹配词/类型/回复/图片），支持增删；空关键词沿用全局。
+- 关键词规则行新增「图片」输入（全局与群级均支持）。
+- keywordsText 第 4 段为可选图片：`匹配词|类型|回复|图片`。
+
+### 图片回复
+
+- 消息段：`{type:'image', data:{file}}`；file 支持 http(s) URL、`base64://xxx`、
+  容器内绝对路径（建议放 `/root/qq-autoreply-images/`，5MB 内，JPEG/PNG/GIF）。
+- 插件侧校验：本地路径必须位于 /root 下且 ≤5MB，否则跳过图片保留文本。
+- 文本+图片混合发送按数组顺序，一次 send_msg。
+
+### 多账号同群防重复
+
+- 新增配置 `crossAccountDedup`（默认开启）。
+- 机制：群消息命中规则后，尝试原子创建
+  `/root/qq-accounts/shared/claims/<群号>_<消息ID>.claim`；创建成功者回复，
+  失败（EEXIST）说明另一实例已抢先，跳过。claim 文件 10 分钟后自动清理。
+- 主实例与子实例共享该目录（同一 rootfs），HOME 隔离不影响。
+
+### 验证
+
+- settings 页 200，内嵌 JS 9461 字符 node --check 通过，包含 grp-list/kw-img。
+- /api/config 正常返回；主实例 Loaded 3 plugins；acc-6102 已恢复运行。
