@@ -108,3 +108,24 @@ Windows(ZAIDU-5466) ──ssh──► mi8 (Android root, Termux)
 3. 打开 WebUI(`http://<ip>:6099/webui?token=x524980520`)确认 3 插件、账号在线
 4. 只读优先：先调 `/api/config`、`/api/instances` 熟悉数据结构
 5. 任何写操作前先备份配置(GET 保存 JSON)
+
+## 9. 异地开发（只有 mi8 可连）
+
+如果开发环境无法访问本机电脑，直接使用 mi8 上的仓库：
+
+- `/root/dev/xiaomi-im-qq`（主仓库）
+- `/root/dev/plugin`（插件仓库）
+- 工具链已在容器内：node 18 / git / npm / pnpm 9
+
+```bash
+# 构建
+/data/adb/bin/astermux proot-distro login napcat -- bash -c 'cd /root/dev/plugin && pnpm build'
+# 部署
+/data/adb/bin/astermux proot-distro login napcat -- bash -c \
+  'cp /root/dev/plugin/dist/index.mjs /root/dev/plugin/dist/package.json \
+   /root/Napcat/opt/QQ/resources/app/app_launcher/napcat/plugins/napcat-plugin-autoreply/'
+# 重启
+ssh mi8 "pkill -f 'Napcat/opt/QQ/qq'; sleep 2; bash /data/adb/bin/mi8-napcat-start.sh"
+```
+
+详细命令见 docs/ops-runbook.md 第 10 节。

@@ -119,3 +119,55 @@ QQ 登录态在 `/root/.config/QQ`，迁移/重装前建议一并备份（体积
 - 账号状态：`GET /plugin/napcat-plugin-account/api/instances?key=...`
 - 跨实例规则：`GET/POST /plugin/napcat-plugin-account/api/account-rules`
 - 二维码图：`GET /plugin/napcat-plugin-account/api/qr?key=...&name=<实例>`
+
+## 10. 在 mi8 上直接开发（异地 Agent 用）
+
+本机电脑不可用时，全部操作可在 mi8 上完成（容器内已具备 node18/git/npm/pnpm9）。
+
+### 仓库位置（容器内）
+
+- 主仓库：`/root/dev/xiaomi-im-qq`
+- 插件仓库：`/root/dev/plugin`
+
+首次准备（已做过，重建时参考）：
+
+```bash
+/data/adb/bin/astermux proot-distro login napcat -- bash -c \
+  'mkdir -p /root/dev && cd /root/dev && \
+   git clone --depth 1 https://github.com/Shunamxiao/xiaomi-im-qq.git && \
+   git clone --depth 1 https://github.com/Shunamxiao/napcat-plugin-template.git plugin && \
+   npm i -g pnpm@9'
+```
+
+### 构建与部署（全部在容器内）
+
+```bash
+# 安装依赖(首次或 package.json 变化后)
+/data/adb/bin/astermux proot-distro login napcat -- bash -c 'cd /root/dev/plugin && pnpm install'
+
+# 构建
+/data/adb/bin/astermux proot-distro login napcat -- bash -c 'cd /root/dev/plugin && pnpm build'
+
+# 部署到运行中的插件目录
+/data/adb/bin/astermux proot-distro login napcat -- bash -c \
+  'cp /root/dev/plugin/dist/index.mjs /root/dev/plugin/dist/package.json \
+   /root/Napcat/opt/QQ/resources/app/app_launcher/napcat/plugins/napcat-plugin-autoreply/'
+
+# 重启(宿主侧)
+ssh mi8 "pkill -f 'Napcat/opt/QQ/qq'; sleep 2; bash /data/adb/bin/mi8-napcat-start.sh"
+```
+
+注意：`pnpm-workspace.yaml` 必须包含 `packages: ["."]`（pnpm9 要求）；两处
+（plugin 与 src/webui）都已配置。
+
+### 提交与推送
+
+- 容器内可 `git add/commit`；`git push` 需要 GitHub 凭据（PAT），由负责人提供或代推。
+- 提交前必须通过：构建成功 + 部署验证（Loaded 3 plugins / 页面 200 / JS 语法检查）。
+
+### 从异地设备（只连 mi8）的最短上手
+
+1. `ssh mi8`
+2. `/data/adb/bin/astermux proot-distro login napcat -- bash -c 'ls /root/dev'`
+3. 读 `/root/dev/xiaomi-im-qq/docs/handoff.md` 与 `ops-runbook.md`
+4. 按上面命令改码、构建、部署
