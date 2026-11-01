@@ -58,8 +58,10 @@ proot 容器内多 QQ 实例**可行**，已落地为 account-manager 插件的�
 ### MCP
 
 - 监听 `::`(IPv6 双栈):8899(CONFIG:~/.config 见 docs/ai-integration.md),可选 `MCP_TOKEN`。
-- 工具 24 个:新增 qq_instances / qq_instance_add / qq_instance_start /
-  qq_instance_stop / qq_instance_delete / qq_instance_qr。
+- 工具 28 个:实例管理 6 个(qq_instances / qq_instance_add / qq_instance_start /
+  qq_instance_stop / qq_instance_delete / qq_instance_qr);另新增 qq_send_image /
+  qq_get_stats / qq_account_config / qq_set_account_config。
+- `qq_instance_qr` 刷新后额外返回主实例 6099 的二维码 `qr_url`。
 
 ## 15. 自动回复配置专页 + 正则匹配（2026-11-01）
 

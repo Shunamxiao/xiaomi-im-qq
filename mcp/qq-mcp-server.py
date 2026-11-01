@@ -15,6 +15,7 @@ import uuid
 import urllib.request
 from collections import deque
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlencode, urlsplit
 
 import websockets
 
@@ -24,7 +25,10 @@ MCP_PORT = int(os.environ.get("MCP_PORT", "8899"))
 MCP_TOKEN = os.environ.get("MCP_TOKEN", "")   # 非空时要求 X-MCP-Token 头或 ?token=
 WEBUI_BASE = "http://127.0.0.1:6099"
 PLUGIN_KEY = "x524980520"
+# 二维码 URL 对外主机；为空时取本次请求的 Host 头（去掉端口），再兜底 127.0.0.1
+WEBUI_PUBLIC_HOST = os.environ.get("WEBUI_PUBLIC_HOST", "")
 MSG_BUF = deque(maxlen=200)
+EVENT_BUF = deque(maxlen=200)  # notice/request 事件缓存，避免未定义导致 WS 断线
 
 _loop = None       # WS 线程的事件循环
 _ws = None         # WS 连接
@@ -122,6 +126,62 @@ def _plugin_api(path, method="GET", body=None):
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _normalize_public_host(raw):
+    """归一化二维码 URL 主机，兼容域名、IPv4、[IPv6]、带 scheme/端口的输入。"""
+    host = (raw or "").strip()
+    if not host:
+        return ""
+    if "://" in host:
+        host = urlsplit(host).netloc
+    host = host.split("/", 1)[0]
+    if host.startswith("["):
+        end = host.find("]")
+        return host[:end + 1] if end != -1 else "[::1]"
+    if host.count(":") == 1:
+        return host.split(":", 1)[0]
+    if host.count(":") > 1:
+        return f"[{host}]"
+    return host
+
+
+def _instance_qr_url(name, request_host=""):
+    """主实例 WebUI 的实例二维码图片地址。"""
+    host = (_normalize_public_host(WEBUI_PUBLIC_HOST)
+            or _normalize_public_host(request_host)
+            or "127.0.0.1")
+    query = urlencode({"key": PLUGIN_KEY, "name": str(name)})
+    return f"http://{host}:6099/plugin/napcat-plugin-account/api/qr?{query}"
+
+
+def _send_image(args):
+    """发送图片，可选附带文字；文字段在前、图片段在后。"""
+    target_type = str(args.get("target_type", "")).strip()
+    if target_type not in ("private", "group"):
+        raise ValueError("target_type 必须是 private 或 group")
+    image = str(args.get("image", "")).strip()
+    if not image:
+        raise ValueError("image 不能为空")
+    message = []
+    text = args.get("text")
+    if text is not None:
+        if not isinstance(text, str):
+            raise ValueError("text 必须是字符串")
+        if text:
+            message.append({"type": "text", "data": {"text": text}})
+    message.append({"type": "image", "data": {"file": image}})
+
+    params = {"message_type": target_type, "message": message}
+    if target_type == "private":
+        if args.get("user_id") in (None, ""):
+            raise ValueError("私聊发送需要 user_id")
+        params["user_id"] = int(args["user_id"])
+    else:
+        if args.get("group_id") in (None, ""):
+            raise ValueError("群聊发送需要 group_id")
+        params["group_id"] = int(args["group_id"])
+    return _call_action("send_msg", params)
+
+
 def _parse_rules_text(keywords_text):
     """多行文本转规则数组，格式与插件 textToKeywords 一致：匹配词|类型|回复。
     类型 prefix/contains（缺省 contains），回复中可含 |，坏行跳过。
@@ -145,11 +205,13 @@ def _parse_rules_text(keywords_text):
 
 # ── MCP 工具调度 ──────────────────────────────────────────────
 
-def _dispatch(name, args):
+def _dispatch(name, args, request_host=""):
     if name == "qq_send_private_msg":
         return _call_action("send_private_msg", {"user_id": args["user_id"], "message": [{"type": "text", "data": {"text": args["message"]}}]})
     if name == "qq_send_group_msg":
         return _call_action("send_group_msg", {"group_id": args["group_id"], "message": [{"type": "text", "data": {"text": args["message"]}}]})
+    if name == "qq_send_image":
+        return _send_image(args)
     if name == "qq_get_group_list":
         return _call_action("get_group_list", {})
     if name == "qq_get_group_members":
@@ -193,6 +255,29 @@ def _dispatch(name, args):
         return result
     if name == "qq_groups":
         return _plugin_api("/plugin/napcat-plugin-autoreply/api/groups")
+    if name == "qq_get_stats":
+        data = _plugin_api("/plugin/napcat-plugin-autoreply/api/status")
+        if isinstance(data, dict) and isinstance(data.get("data"), dict):
+            data = data["data"]
+        if not isinstance(data, dict):
+            raise RuntimeError("autoreply status 返回格式异常")
+        config = data.get("config") if isinstance(data.get("config"), dict) else {}
+        return {
+            "pluginName": data.get("pluginName", ""),
+            "uptimeFormatted": data.get("uptimeFormatted", ""),
+            "enabled": config.get("enabled"),
+            "stats": data.get("stats", {}),
+        }
+    if name == "qq_account_config":
+        inst = str(args.get("name", "main")).strip() or "main"
+        return _plugin_api("/plugin/napcat-plugin-account/api/account-rules?" + urlencode({"name": inst}))
+    if name == "qq_set_account_config":
+        inst = str(args.get("name", "main")).strip() or "main"
+        config = args.get("config")
+        if not isinstance(config, dict):
+            raise ValueError("config 必须是 JSON 对象")
+        return _plugin_api("/plugin/napcat-plugin-account/api/account-rules", "POST",
+                           {"name": inst, "config": config})
     # ── 多实例管理（account 插件）──
     if name == "qq_instances":
         return _plugin_api("/plugin/napcat-plugin-account/api/instances")
@@ -205,13 +290,20 @@ def _dispatch(name, args):
     if name == "qq_instance_delete":
         return _plugin_api("/plugin/napcat-plugin-account/api/instance-delete", "POST", {"name": str(args["name"])})
     if name == "qq_instance_qr":
-        return _plugin_api("/plugin/napcat-plugin-account/api/instance-qr", "POST", {"name": str(args["name"])})
+        inst = str(args["name"])
+        result = _plugin_api("/plugin/napcat-plugin-account/api/instance-qr", "POST", {"name": inst})
+        if not isinstance(result, dict):
+            result = {"result": result}
+        result["name"] = inst
+        result["qr_url"] = _instance_qr_url(inst, request_host)
+        return result
     raise ValueError(f"Unknown tool: {name}")
 
 
 MCP_TOOLS = [
     {"name": "qq_send_private_msg", "description": "发送私聊消息", "inputSchema": {"type": "object", "properties": {"user_id": {"type": "integer"}, "message": {"type": "string"}}, "required": ["user_id", "message"]}},
     {"name": "qq_send_group_msg", "description": "发送群聊消息", "inputSchema": {"type": "object", "properties": {"group_id": {"type": "integer"}, "message": {"type": "string"}}, "required": ["group_id", "message"]}},
+    {"name": "qq_send_image", "description": "发送图片(URL/base64:// 或 NapCat 容器内路径),可选附带文字(文字在前)", "inputSchema": {"type": "object", "properties": {"target_type": {"type": "string", "enum": ["private", "group"], "description": "发送目标类型"}, "user_id": {"type": "integer", "description": "私聊目标 QQ 号;target_type=private 时必填"}, "group_id": {"type": "integer", "description": "群号;target_type=group 时必填"}, "image": {"type": "string", "description": "图片 URL、base64:// 或 NapCat 容器内路径"}, "text": {"type": "string", "description": "可选文字,在图片前发送"}}, "required": ["target_type", "image"]}},
     {"name": "qq_get_recent_messages", "description": "获取最近收到的消息", "inputSchema": {"type": "object", "properties": {"count": {"type": "integer"}, "group_id": {"type": "integer"}}, "required": []}},
     {"name": "qq_get_group_list", "description": "获取群列表", "inputSchema": {"type": "object", "properties": {}, "required": []}},
     {"name": "qq_get_group_members", "description": "获取群成员列表", "inputSchema": {"type": "object", "properties": {"group_id": {"type": "integer"}}, "required": ["group_id"]}},
@@ -228,12 +320,15 @@ MCP_TOOLS = [
     {"name": "qq_get_rules", "description": "获取自动回复插件配置（关键词规则、私聊/群聊开关、黑白名单）", "inputSchema": {"type": "object", "properties": {}, "required": []}},
     {"name": "qq_set_rules", "description": "设置自动回复关键词规则，每行一条：匹配词|类型|回复（类型 prefix=前缀匹配 / contains=包含匹配，可省略，回复中可含 |）", "inputSchema": {"type": "object", "properties": {"keywordsText": {"type": "string"}}, "required": ["keywordsText"]}},
     {"name": "qq_groups", "description": "获取群列表及各群自动回复开关状态", "inputSchema": {"type": "object", "properties": {}, "required": []}},
+    {"name": "qq_get_stats", "description": "获取自动回复插件运行统计(processed/todayProcessed)与运行时长", "inputSchema": {"type": "object", "properties": {}, "required": []}},
+    {"name": "qq_account_config", "description": "读取指定 QQ 实例的自动回复完整配置(跨实例,main 或 acc-*)", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "实例名,如 main / acc-6102"}}, "required": ["name"]}},
+    {"name": "qq_set_account_config", "description": "写入指定 QQ 实例的自动回复完整配置(跨实例);建议先读取再整体回写,keywords 数组为规则权威", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "实例名,如 main / acc-6102"}, "config": {"type": "object", "description": "完整配置对象"}}, "required": ["name", "config"]}},
     {"name": "qq_instances", "description": "列出全部 QQ 实例(主实例+多账号实例):绑定账号/昵称/运行状态/登录状态/端口", "inputSchema": {"type": "object", "properties": {}, "required": []}},
     {"name": "qq_instance_add", "description": "创建新的 QQ 实例(独立数据与端口),创建后自动启动并等待扫码登录", "inputSchema": {"type": "object", "properties": {}, "required": []}},
     {"name": "qq_instance_start", "description": "启动指定 QQ 实例", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "实例名,如 acc-6101"}}, "required": ["name"]}},
     {"name": "qq_instance_stop", "description": "停止指定 QQ 实例", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "qq_instance_delete", "description": "删除指定 QQ 实例(不可恢复,会先停止进程再删除数据目录;主实例不可删)", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
-    {"name": "qq_instance_qr", "description": "手动刷新指定实例的登录二维码(会请求 QQ 接口,仅在需要扫码时调用)", "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
+    {"name": "qq_instance_qr", "description": "刷新指定实例的登录二维码(会请求 QQ 接口),并返回二维码图片 URL;仅在需要扫码时调用", "inputSchema": {"type": "object", "properties": {"name": {"type": "string", "description": "实例名,如 acc-6102"}}, "required": ["name"]}},
 ]
 
 
@@ -277,7 +372,7 @@ class MCPHandler(BaseHTTPRequestHandler):
             name = params.get("name", "")
             args = params.get("arguments", {})
             try:
-                result = _dispatch(name, args)
+                result = _dispatch(name, args, self.headers.get("Host", ""))
                 text = json.dumps(result, ensure_ascii=False) if not isinstance(result, str) else result
                 self._send_json(200, self._rpc(req_id, {"content": [{"type": "text", "text": text}]}))
             except Exception as exc:

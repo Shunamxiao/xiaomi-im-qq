@@ -11,7 +11,7 @@
 | `bot/autoreply-rules.json` | 回复规则（总开关/关键词/白名单） | `/root/autoreply-rules.json` |
 | `plugin/` | 自动回复 NapCat 插件（官方模板 fork，pnpm 构建） | 容器内插件目录 |
 | `plugins/account-manager/` | 账号管理插件（状态/切换/扫码添加，单文件 ESM） | 容器内插件目录 |
-| `mcp/` | QQ MCP server（18 个工具，HTTP :8000，AI Agent 接入） | `~/qq-mcp/qq-mcp-server.py`（termux home） |
+| `mcp/` | QQ MCP server（28 个工具，HTTP :8899，AI Agent 接入） | `~/qq-mcp/qq-mcp-server.py`（termux home） |
 | `deploy/mi8-napcat-start.sh` | root 常驻启动脚本（QQ+机器人，幂等） | `/data/adb/bin/mi8-napcat-start.sh` |
 | `deploy/mi8-napcat-service.sh` | Magisk service.d 开机自启包装 | `/data/adb/service.d/mi8-napcat.sh` |
 | `deploy/fakehost.c` | 容器内主机名伪装 LD_PRELOAD 源码 | `/usr/lib/fakehost.so`（容器内编译） |
@@ -24,7 +24,7 @@
 1. 自动回复规则：插件 API
    `GET/POST /plugin/napcat-plugin-autoreply/api/config?key=x524980520`（WebUI :6099），
    或 MCP 工具 `qq_get_rules` / `qq_set_rules`；规则以 keywords 数组为准。
-2. AI Agent 接入：MCP 端点 `POST /mcp`（HTTP :8000），工具清单与框架配置见
+2. AI Agent 接入：MCP 端点 `POST /mcp`（HTTP :8899），工具清单与框架配置见
    `docs/ai-integration.md`。
 3. 插件改动：本地 `pnpm build` → 整包部署 → 验证 Loaded N plugins，
    完整闭环与坑位见 `docs/plugin-dev-notes.md`。
@@ -91,3 +91,14 @@ ssh mi8 '/system/bin/am force-stop com.tencent.mobileqq; pkill -f "[o]pt/QQ/qq";
 
 - NapCat 属协议端机器人，账号有被风控可能，建议小号先行。
 - 修改包/机器人登录违反 QQ 服务条款，自担风险。
+
+## 文档索引
+
+| 文档 | 内容 |
+| --- | --- |
+| docs/ops-runbook.md | 运维手册：拓扑/端口、日常命令、部署、排障速查、备份、安全 |
+| docs/handoff.md | 交接文档：架构、代码地图、数据流、扩展指南、开发约定（给联合开发 Agent） |
+| docs/plugin-dev-notes.md | NapCat 插件开发经验与踩坑 |
+| docs/ai-integration.md | MCP 工具清单、Agent 框架接入（openclaw/omp） |
+| docs/multi-instance.md | 多账号实例机制、配置中心、群级规则 |
+| docs/napcat-deploy.md | 部署史与历次修复记录 |
