@@ -171,3 +171,36 @@ ssh mi8 "pkill -f 'Napcat/opt/QQ/qq'; sleep 2; bash /data/adb/bin/mi8-napcat-sta
 2. `/data/adb/bin/astermux proot-distro login napcat -- bash -c 'ls /root/dev'`
 3. 读 `/root/dev/xiaomi-im-qq/docs/handoff.md` 与 `ops-runbook.md`
 4. 按上面命令改码、构建、部署
+
+## 11. 2026-11-08 故障记录：inst1=unreachable / device=down
+
+### 现象
+
+- 公网 /health=200，服务=active，但 device=down、inst1=unreachable
+- mi8 上 QQ 进程数 0，3001/6099 均未监听
+
+### 已处理
+
+1. **inst1 恢复**：NapCat 完全未运行；执行
+   `bash /data/adb/bin/mi8-napcat-start.sh`（通过 account-bridge 哨兵拉起 acc-main），
+   之后 3001/6099 监听、QQ 1457278554 自动登录、Loaded 3 plugins。
+   - 该脚本 2026-11-08 已改为「只拉 acc-main」，主实例即 `acc-main`（registry 中
+     onebotPort=3001 / webuiPort=6099）。bridge 会把哨兵 `main.start` 映射到 `acc-main`。
+2. **公网链路确认**：本机通过公网 IPv6 `ssh -p 8022 u0_a290@[2408:8256:1480:4c41:...]`
+   成功；`mi.theworld.codes` 的 AAAA 已指向该地址。
+3. **容器 DNS**：原 `/etc/resolv.conf` 为 8.8.8.8/8.8.4.4（UDP 53 被拒），
+   已改为 `192.168.1.1 / 223.5.5.5 / 240c::6666`。
+
+### 待服务端处理
+
+- `device=down`：服务端（疑似 `eu-dev@vmi3675503` VPS）SSH 到 mi8 失败。
+  排查：`getent ahosts mi.theworld.codes`、`ssh -v -p 8022 u0_a290@mi.theworld.codes`。
+  若是写死旧 IPv6（2408:8256:1475:... 已变为 1480:4c41:...），改为域名并重启服务。
+
+### 已知环境限制（2026-11-08）
+
+- 容器内 node/curl 直连公网域名（含 198.18.0.4 fake-ip、公共 DNS、Cloudflare IP）
+  均超时，仅 QQ 与 cloudflared 的既存通道可用；宿主 Termux 侧 curl 正常（200）。
+  影响：autoreply 插件与 qqbot.theworld.codes 的云端同步/上报可能失败，
+  群内自动回复不受影响。
+- 若要恢复插件云同步：给容器内 node 增加可用代理通道，或让服务端改为推送模式。
