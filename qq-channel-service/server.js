@@ -101,7 +101,7 @@ const server = http.createServer(async (req, res) => {
         try { execFileSync('adb', ['-s', ADB_DEV, 'shell', 'chmod', '666', devPath], { timeout: 15000 }); } catch {} // adb push 以 root 落盘，QQ uid 读不了
         fs.unlinkSync(localPath);
       }
-      const r = await callBridge('upload_image', [devPath, p2.devPathOverride ? '' : p2.fileName, p2.width || 0, p2.height || 0, p2.size || 0]);
+      const r = await callBridge('upload_image', [devPath, p2.devPathOverride ? '' : p2.fileName, p2.width || 0, p2.height || 0, p2.size || 0, p2.guildId || p.guildId || '']);
       res.end(JSON.stringify({ ok: !!r.ok, ...r }));
       return;
     }
@@ -147,10 +147,11 @@ const server = http.createServer(async (req, res) => {
           // auto: web 失败回退 native
         }
       }
-      // native 通道同样支持 markdown：段落转换在 Node 侧完成，agent 只负责组装
+      // native 通道同样支持 markdown：段落转换在 Node 侧完成，agent 只负责组装；
+      // 同时在 jsonFeed.contents 里带原生 isMarkdown/sourceMarkdown（渲染器认则原生渲染，段落兜底）
       try {
         const paragraphs = p.markdown ? mdToParagraphs(p.text) : null;
-        const r = await callBridge('publish', [p.guildId, p.channelId, p.text, p.posterId || POSTER_ID, p.images || [], paragraphs]);
+        const r = await callBridge('publish', [p.guildId, p.channelId, p.text, p.posterId || POSTER_ID, p.images || [], paragraphs, p.markdown ? 1 : 0]);
         const published = r && r.idd;
         if (published) {
           res.end(JSON.stringify({ ok: true, via: 'native', ...r }));

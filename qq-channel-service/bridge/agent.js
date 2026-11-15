@@ -131,7 +131,7 @@ function buildExtInfo(NI, EntryCls, clientKey, nParas) {
   return list;
 }
 
-function buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragraphs) {
+function buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragraphs, isMd) {
   var NI = g.NI;
   var JLong = Java.use('java.lang.Long');
   // Native format: GuildNativeMain_<ms>_<uuid4> (capture.log). 'NodeSvc_' style is a giveaway.
@@ -140,6 +140,10 @@ function buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragrap
   var paras = paragraphs && paragraphs.length ? paragraphs
     : [{ elems: [{ text: { text_content: { text: text } }, type: 1 }] }];
   var nParas = paras.length;
+  // 原生 Markdown 渲染通道（out4/GProStRichText.java + compat.c 序列化推断）：
+  // jsonFeed.contents.isMarkdown=true + sourceMarkdown=camelCase 键；渲染开关在 native 层，
+  // 若服务端不认，content_with_style 段落仍是兜底。
+  var mdContents = isMd ? { isMarkdown: true, sourceMarkdown: String(text) } : undefined;
   var sign = NI.Sign.$new();
   sign.guildId.value = JLong.parseLong(guildIdS);
   sign.channelId.value = JLong.parseLong(channelIdS);
@@ -161,6 +165,7 @@ function buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragrap
     client_task_id: CLIENT_KEY,
     media_lock_count: 0,
     content_with_style: { paragraphs: paras },
+    contents: mdContents,
     advanced_settings: { not_allow_download: false, show_watermark: false },
     files: []
   });
@@ -180,7 +185,7 @@ function buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragrap
 var MIN_PUBLISH_INTERVAL = 10000;
 var lastPublishAt = 0;
 
-function publish(guildIdS, channelIdS, text, posterIdS, images, paragraphs) {
+function publish(guildIdS, channelIdS, text, posterIdS, images, paragraphs, isMd) {
   init();
   var gap = Date.now() - lastPublishAt;
   if (gap < MIN_PUBLISH_INTERVAL) {
@@ -188,7 +193,7 @@ function publish(guildIdS, channelIdS, text, posterIdS, images, paragraphs) {
   }
   lastPublishAt = Date.now();
   return getPskey('pd.qq.com', 8000).then(function (pskey) {
-    var built = buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragraphs);
+    var built = buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragraphs, isMd);
     // image posts carry media info ONLY via req.clientContent.clientImageContents —
     // real client strips medias from jsonFeed before sending (publish_k.java:529)
     if (images && images.length) {
@@ -318,10 +323,12 @@ Java.perform(function () {
 });
 
 // Upload one image via kernel guildFileTransferService.
-// absPath must exist on the device (adb-push'ed). Returns via polling g.uploadHolder.
-function uploadImage(absPath, fileName, width, height, fileSize) {
+// absPath must exist on the device (adb-push'ed). uploadGuildId = 发帖目标 guild（extInfo 归属）。
+// Returns via polling g.uploadHolder.
+function uploadImage(absPath, fileName, width, height, fileSize, uploadGuildId) {
   init();
   var JUUID = Java.use('java.util.UUID');
+  var JLong = Java.use('java.lang.Long');
   var gid = JUUID.randomUUID().toString();
   var fileId = JUUID.randomUUID().toString();
   g.uploadHolder[gid] = { status: null, url: null, fileId: null, md5: null };
@@ -359,8 +366,16 @@ function uploadImage(absPath, fileName, width, height, fileSize) {
           var childIds = Java.use('java.util.ArrayList').$new();
           childIds.add(fileId);
           groupInfo.childFileIds.value = childIds;
+          // UploadFileExtInfo 必须带归属上下文（静态逆向 out4/UploadFileExtInfo.java +
+          // GuildFeedFileUploadServiceApiImpl.java:352-425）：
+          //   guildId=发帖目标 guild, source=UPLOAD_SOURCE_PUBLISH_FEED(1)。
+          // 空对象时 kernel 校验不过（此前 errno=2 GetFileInfo error 的嫌疑根因）。
           var ExtInfoCls = useAny('com.tencent.qqnt.kernelgpro.nativeinterface.UploadFileExtInfo');
-          groupInfo.uploadFileExtInfo.value = ExtInfoCls.$new();
+          var extInfo = ExtInfoCls.$new();
+          extInfo.guildId.value = JLong.parseLong(uploadGuildId);
+          extInfo.source.value = 1; // UPLOAD_SOURCE_PUBLISH_FEED
+          extInfo.feedId.value = '';
+          groupInfo.uploadFileExtInfo.value = extInfo;
           var param = g.NI.CreateParam.$new();
           param.fileGroupInfo.value = groupInfo;
           var params = Java.use('java.util.ArrayList').$new();
@@ -415,13 +430,13 @@ rpc.exports = {
       return { pskey: pskey, uin: uin, tinyid: tinyid };
     });
   },
-  publish: function (guildIdS, channelIdS, text, posterIdS, images, paragraphs) {
-    return publish(String(guildIdS), String(channelIdS), String(text), String(posterIdS), images || [], paragraphs || null);
+  publish: function (guildIdS, channelIdS, text, posterIdS, images, paragraphs, isMd) {
+    return publish(String(guildIdS), String(channelIdS), String(text), String(posterIdS), images || [], paragraphs || null, !!isMd);
   },
   // frida python 端会把 snake_case 属性名转成 camelCase 的 wire 名，
   // JS 侧统一用 camelCase；python/bridge 端调用传 upload_image
-  uploadImage: function (absPath, fileName, width, height, fileSize) {
-    return uploadImage(String(absPath), String(fileName || ''), width | 0, height | 0, fileSize | 0);
+  uploadImage: function (absPath, fileName, width, height, fileSize, guildId) {
+    return uploadImage(String(absPath), String(fileName || ''), width | 0, height | 0, fileSize | 0, String(guildId || ''));
   }
 };
 
