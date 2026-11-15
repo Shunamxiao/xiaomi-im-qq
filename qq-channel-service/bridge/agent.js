@@ -42,6 +42,7 @@ function init() {
   if (!session.isInit()) throw new Error('GPro session not init');
   g.fGuild = found;
   g.appRuntime = rt;
+  g.session = session;
   g.feedService = session.getFeedService();
   g.NI = {
     Req: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProStPublishFeedReq'),
@@ -51,7 +52,15 @@ function init() {
     HttpInfo: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProHttpReqInfo'),
     Ext: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProStCommonExt'),
     Entry: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProFeedEntry'),
-    PubCb: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.IGPropublishFeedCallback')
+    PubCb: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.IGPropublishFeedCallback'),
+    TransferSvc: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.IKernelGuildFileTransferService'),
+    UploadFileInfo: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProUploadFileInfo'),
+    UploadGroupInfo: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProUploadFileGroupInfo'),
+    CreateParam: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProCreateUploadFileGroupParam'),
+    ClientContent: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProStClientContent'),
+    ClientImageContent: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProStClientImageContent'),
+    UploadFileType: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProUploadFileType'),
+    UploadStatus: useAny('com.tencent.qqnt.kernelgpro.nativeinterface.GProUploadStatus')
   };
   g.ready = true;
 }
@@ -180,6 +189,28 @@ function publish(guildIdS, channelIdS, text, posterIdS, images, paragraphs) {
   lastPublishAt = Date.now();
   return getPskey('pd.qq.com', 8000).then(function (pskey) {
     var built = buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragraphs);
+    // image posts carry media info ONLY via req.clientContent.clientImageContents —
+    // real client strips medias from jsonFeed before sending (publish_k.java:529)
+    if (images && images.length) {
+      try {
+        var cc = g.NI.ClientContent.$new();
+        var imgs = Java.use('java.util.ArrayList').$new();
+        images.forEach(function (im) {
+          var ic = g.NI.ClientImageContent.$new();
+          ic.taskId.value = String(im.taskId || '');
+          ic.url.value = String(im.url || '');
+          ic.md5.value = String(im.md5 || '');
+          ic.isOrig.value = !!im.isOrig;
+          ic.origSize.value = im.size | 0;
+          ic.isGif.value = !!im.isGif;
+          imgs.add(ic);
+        });
+        cc.clientImageContents.value = imgs;
+        built.req.clientContent.value = cc;
+      } catch (e) {
+        send(TAG + 'clientContent fill failed: ' + e);
+      }
+    }
     return new Promise(function (resolve) {
       var result = { idd: null, retCode: null, errMsg: null, gotRsp: false };
       g.pubCbHolder.result = result;
@@ -206,6 +237,8 @@ function publish(guildIdS, channelIdS, text, posterIdS, images, paragraphs) {
 Java.perform(function () {
   g.pskeyCbHolder = { domain: null, v: null };
   g.pubCbHolder = { result: null };
+  // image upload: fileGroupId -> {status, url, fileId, md5, size}
+  g.uploadHolder = {};
   try {
     g.pskeyCbInstance = Java.registerClass({
       name: 'org.rea.NodePskeyCb',
@@ -234,11 +267,131 @@ Java.perform(function () {
         }
       }
     }).$new();
+    // image upload listener: tracks per-fileGroup completion (kernel does hashing/slicing/upload)
+    g.uploadListenerInstance = Java.registerClass({
+      name: 'org.rea.NodeUploadListener',
+      implements: [Java.use('com.tencent.qqnt.kernelgpro.nativeinterface.IKernelGuildFileUploadListener')],
+      methods: {
+        onFileCalcHashSuccess: function (info) {},
+        onFileGroupUploadSizeChanged: function (gid, uploaded, total) {},
+        onFileGroupUploadSpeedChanged: function (gid, speed, map) {},
+        onFileGroupUploadStatusChanged: function (groupInfo) {
+          try {
+            var gid = String(groupInfo.fileGroupId);
+            var rec = g.uploadHolder[gid];
+            if (!rec) return;
+            rec.status = String(groupInfo.uploadStatus);
+            rec.totalFileSize = groupInfo.totalFileSize.value;
+            rec.errorCode = groupInfo.errorCode.value;
+            rec.errorMsg = String(groupInfo.errorMsg);
+            send(TAG + 'upload group ' + gid + ' status=' + rec.status + ' err=' + rec.errorCode);
+          } catch (e) { send(TAG + 'groupStatus err ' + e); }
+        },
+        onFileUploadStatusChanged: function (info) {
+          try {
+            var gid = String(info.fileGroupId);
+            var rec = g.uploadHolder[gid];
+            if (!rec) return;
+            rec.status = String(info.uploadStatus);
+            rec.md5 = String(info.md5);
+            rec.svrUrl = String(info.svrUrl);
+            rec.svrFileId = String(info.svrFileId);
+            rec.fileSize = info.totalFileSize.value;
+            send(TAG + 'upload file ' + gid + ' status=' + rec.status + ' url=' + rec.svrUrl.slice(0, 60) + ' md5=' + rec.md5);
+          } catch (e) { send(TAG + 'fileStatus err ' + e); }
+        }
+      }
+    }).$new();
+    g.createGroupCbInstance = Java.registerClass({
+      name: 'org.rea.NodeCreateGroupCb',
+      implements: [Java.use('com.tencent.qqnt.kernelgpro.nativeinterface.IGProCreateUploadFileGroupCallback')],
+      methods: {
+        onCreateUploadFileGroupResult: function (code, msg, info) {
+          send(TAG + 'createFileGroupUpload result=' + code + ' ' + String(msg));
+        }
+      }
+    }).$new();
     send(TAG + 'callback singletons registered');
   } catch (e) {
     send(TAG + 'register singletons failed: ' + e);
   }
 });
+
+// Upload one image via kernel guildFileTransferService.
+// absPath must exist on the device (adb-push'ed). Returns via polling g.uploadHolder.
+function uploadImage(absPath, fileName, width, height, fileSize) {
+  init();
+  var JUUID = Java.use('java.util.UUID');
+  var gid = JUUID.randomUUID().toString();
+  var fileId = JUUID.randomUUID().toString();
+  g.uploadHolder[gid] = { status: null, url: null, fileId: null, md5: null };
+  return new Promise(function (resolve) {
+    // 阶段1：先注册 listener（包装类把注册排队异步执行，须先于 create 完成以免事件竞态丢失）
+    Java.scheduleOnMainThread(function () {
+      try {
+        var svc0 = g.session.getGuildFileTransferService();
+        svc0.addFileUploadListener(g.uploadListenerInstance);
+        send(TAG + 'uploadImage listener registered');
+      } catch (e0) {
+        send(TAG + 'listener register threw: ' + e0);
+        resolve({ ok: false, error: String(e0) });
+      }
+    });
+    // 阶段2：3s 后再创建上传任务（此时 listener 注册已在 kernel 侧生效）
+    setTimeout(function () {
+      Java.scheduleOnMainThread(function () {
+        try {
+          var svc = g.session.getGuildFileTransferService();
+          var KPICTURE = g.NI.UploadFileType.KPICTURE.value;
+          var info = g.NI.UploadFileInfo.$new();
+          info.fileGroupId.value = gid;
+          info.fileId.value = fileId;
+          info.filePath.value = absPath;
+          info.fileName.value = fileName;
+          info.fileWidth.value = width || 0;
+          info.fileHeight.value = height || 0;
+          info.totalFileSize.value = fileSize || 0;
+          info.appType.value = 25; // native capture: guild feed uses appType 25
+          info.isOriginal.value = false;
+          info.fileType.value = KPICTURE;
+          var groupInfo = g.NI.UploadGroupInfo.$new();
+          groupInfo.fileGroupId.value = gid;
+          var childIds = Java.use('java.util.ArrayList').$new();
+          childIds.add(fileId);
+          groupInfo.childFileIds.value = childIds;
+          var ExtInfoCls = useAny('com.tencent.qqnt.kernelgpro.nativeinterface.UploadFileExtInfo');
+          groupInfo.uploadFileExtInfo.value = ExtInfoCls.$new();
+          var param = g.NI.CreateParam.$new();
+          param.fileGroupInfo.value = groupInfo;
+          var params = Java.use('java.util.ArrayList').$new();
+          params.add(info);
+          param.fileParams.value = params;
+          var svcRef = Java.retain(svc);
+          svcRef.addFileUploadListener(g.uploadListenerInstance);
+          svcRef.createFileGroupUpload(param, g.createGroupCbInstance);
+          send(TAG + 'uploadImage started gid=' + gid + ' path=' + absPath);
+        } catch (e) {
+          send(TAG + 'uploadImage threw: ' + e);
+          resolve({ ok: false, error: String(e) });
+          return;
+        }
+        var waited = 0;
+        var t = setInterval(function () {
+          var rec = g.uploadHolder[gid];
+          waited += 500;
+          if (rec && (rec.status === 'KUPLOADSUCCESS' || rec.status === 'KUPLOADFAILED' || waited > 90000)) {
+            clearInterval(t);
+            if (rec.status === 'KUPLOADSUCCESS') {
+              resolve({ ok: true, taskId: gid, url: rec.svrUrl, svrFileId: rec.svrFileId, md5: rec.md5, size: rec.fileSize });
+            } else {
+              resolve({ ok: false, error: 'upload status=' + rec.status + ' err=' + rec.errorCode + ' ' + (rec.errorMsg || ''), taskId: gid });
+            }
+          }
+        }, 500);
+      });
+    }, 3000);
+  });
+}
 
 rpc.exports = {
   status: function () {
@@ -264,6 +417,11 @@ rpc.exports = {
   },
   publish: function (guildIdS, channelIdS, text, posterIdS, images, paragraphs) {
     return publish(String(guildIdS), String(channelIdS), String(text), String(posterIdS), images || [], paragraphs || null);
+  },
+  // frida python 端会把 snake_case 属性名转成 camelCase 的 wire 名，
+  // JS 侧统一用 camelCase；python/bridge 端调用传 upload_image
+  uploadImage: function (absPath, fileName, width, height, fileSize) {
+    return uploadImage(String(absPath), String(fileName || ''), width | 0, height | 0, fileSize | 0);
   }
 };
 

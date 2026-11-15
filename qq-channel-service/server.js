@@ -8,8 +8,9 @@
  * 依赖: WSL 内 frida 客户端 (bridge/bridge.py) + mi8 上运行的 QQ。
  * 桥进程通过 stdio JSON 行协议与 Node 通信。
  */
-const { spawn } = require('child_process');
+const { spawn, execFileSync } = require('child_process');
 const http = require('http');
+const fs = require('fs');
 const path = require('path');
 const { publishFeed: webPublish, loadCredentials } = require('./lib/gateway');
 const { mdToParagraphs } = require('./lib/markdown');
@@ -74,6 +75,34 @@ const server = http.createServer(async (req, res) => {
       // 本地联调用：返回 web 网关直发所需凭证（pskey/uin/tinyid）
       const r = await callBridge('credentials', []);
       res.end(JSON.stringify({ ok: true, ...r }));
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/upload-image') {
+      // body: {fileName, width?, height?, dataBase64}
+      // 流程: 写本地临时文件 → adb push 到手机 → kernel guildFileTransferService 上传
+      // 返回 {ok, taskId, url, svrFileId, md5} 供 /publish images 使用
+      const p2 = JSON.parse(await readBody(req));
+      if (!p2.dataBase64 || !p2.fileName) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ ok: false, error: 'fileName, dataBase64 are required' }));
+        return;
+      }
+      // 自动探测装有 QQ 的设备（USB/网络 adb 可能换口），env QQ_ADB_DEVICE 可强制指定
+      const ADB_DEV = process.env.QQ_ADB_DEVICE || resolveAdbDevice();
+      const localPath = path.join(__dirname, 'upload-tmp-' + Date.now() + '-' + p2.fileName.replace(/[^\w.\-]/g, '_'));
+      fs.writeFileSync(localPath, Buffer.from(p2.dataBase64, 'base64'));
+      let devPath = '/sdcard/Android/data/com.tencent.mobileqq/cache/rea_up/' + path.basename(localPath);
+      if (p2.devPathOverride) {
+        // 直接使用设备上已有文件（调试用），跳过 push
+        devPath = p2.devPathOverride;
+      } else {
+        execFileSync('adb', ['-s', ADB_DEV, 'shell', 'mkdir', '-p', '/sdcard/Android/data/com.tencent.mobileqq/cache/rea_up'], { timeout: 15000 });
+        execFileSync('adb', ['-s', ADB_DEV, 'push', localPath, devPath], { timeout: 60000 });
+        try { execFileSync('adb', ['-s', ADB_DEV, 'shell', 'chmod', '666', devPath], { timeout: 15000 }); } catch {} // adb push 以 root 落盘，QQ uid 读不了
+        fs.unlinkSync(localPath);
+      }
+      const r = await callBridge('upload_image', [devPath, p2.devPathOverride ? '' : p2.fileName, p2.width || 0, p2.height || 0, p2.size || 0]);
+      res.end(JSON.stringify({ ok: !!r.ok, ...r }));
       return;
     }
     if (req.method === 'POST' && url.pathname === '/publish') {
@@ -161,6 +190,29 @@ function readBody(req) {
     req.on('end', () => resolve(b));
     req.on('error', reject);
   });
+}
+
+// 在 adb devices 里找装了 com.tencent.mobileqq 的那台（QQ 所在机可能从 USB 换到网络 adb）
+let adbDeviceCache = null;
+function resolveAdbDevice() {
+  if (adbDeviceCache) return adbDeviceCache;
+  try {
+    const list = execFileSync('adb', ['devices'], { encoding: 'utf8', timeout: 10000 });
+    const serials = list.split('\n').slice(1)
+      .map((l) => l.trim().split(/\s+/)[0])
+      .filter((s) => s && s !== 'offline');
+    for (const serial of serials) {
+      try {
+        execFileSync('adb', ['-s', serial, 'shell', 'pm', 'path', 'com.tencent.mobileqq'], { timeout: 10000 });
+        adbDeviceCache = serial;
+        console.log('[adb] resolved QQ device:', serial);
+        return serial;
+      } catch {} // 这台没装 QQ，看下一台
+    }
+  } catch (e) {
+    console.error('[adb] device probe failed:', e.message);
+  }
+  return 'a0d80dd7'; // 探测失败时的兜底（历史 mi8 serial）
 }
 
 server.listen(PORT, () => console.log(`qq-channel-service listening on :${PORT}`));
