@@ -161,7 +161,7 @@ function buildReq(guildIdS, channelIdS, text, posterIdS, pskey, images, paragrap
     title: {},
     poster: { id: posterIdS },
     channelInfo: { sign: { guild_id: guildIdS, channel_id: channelIdS }, is_square: true },
-    tagInfos: [], recommend_channels: [], images: imgList, videos: [],
+    tagInfos: [], recommend_channels: [], images: [], videos: [],
     client_task_id: CLIENT_KEY,
     media_lock_count: 0,
     content_with_style: { paragraphs: paras },
@@ -203,6 +203,7 @@ function publish(guildIdS, channelIdS, text, posterIdS, images, paragraphs, isMd
         images.forEach(function (im) {
           var ic = g.NI.ClientImageContent.$new();
           ic.taskId.value = String(im.taskId || '');
+          ic.picId.value = String(im.svrFileId || im.picId || ''); // 上传返回的 svrFileId
           ic.url.value = String(im.url || '');
           ic.md5.value = String(im.md5 || '');
           ic.isOrig.value = !!im.isOrig;
