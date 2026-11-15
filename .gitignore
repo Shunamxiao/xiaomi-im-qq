@@ -1,12 +1,6 @@
-node_modules/
-*.log
+# REA 抓包/解包产物（APK、dex、so、frida-server，体积大且可再生）
+.rea-artifacts/
 
-# 插件二开独立仓库（fork: Shunamxiao/napcat-plugin-template）
-plugin/
-plugin-template/
-plugin-template/
-_*.mjs
-_*.py
-.t*.js
-.probe*
-*.bak
+# 运行日志与依赖
+**/node_modules/
+*.log
