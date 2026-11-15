@@ -10,6 +10,10 @@
  */
 const { spawn } = require('child_process');
 const http = require('http');
+const path = require('path');
+const { publishFeed: webPublish, loadCredentials } = require('./lib/gateway');
+const { mdToParagraphs } = require('./lib/markdown');
+const { publishViaBrowser } = require('./lib/webui');
 
 const PORT = 8901;
 const POSTER_ID = process.env.QQ_POSTER_ID || '144115219939370567'; // 账号在频道内的 tinyid
@@ -66,6 +70,12 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: true, ...r }));
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/credentials') {
+      // 本地联调用：返回 web 网关直发所需凭证（pskey/uin/tinyid）
+      const r = await callBridge('credentials', []);
+      res.end(JSON.stringify({ ok: true, ...r }));
+      return;
+    }
     if (req.method === 'POST' && url.pathname === '/publish') {
       const body = await readBody(req);
       const p = JSON.parse(body);
@@ -74,10 +84,66 @@ const server = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: false, error: 'guildId, channelId, text are required' }));
         return;
       }
-      const r = await callBridge('publish', [p.guildId, p.channelId, p.text, p.posterId || POSTER_ID]);
-      const published = r && r.idd;
-      res.statusCode = published ? 200 : 502;
-      res.end(JSON.stringify({ ok: !!published, ...r }));
+      // 通道选择: auto(默认)=native 优先(全能力:中文/Markdown/图片结构),
+      // channel='browser'=浏览器 UI 代理(不依赖真机,ASCII 文本+图片文件),
+      // channel='web'=网关直发(需 credentials-web.json)
+      const channel = p.channel || 'auto';
+      if (channel === 'browser') {
+        const r = publishViaBrowser({
+          guildSlug: p.guildSlug || 'apksccbox9527',
+          text: p.text,
+          images: p.imageFiles || []
+        });
+        res.end(JSON.stringify(r));
+        return;
+      }
+      let result;
+      if (channel === 'web' || channel === 'auto') {
+        const cred = loadCredentials();
+        if (channel === 'web' || (cred && cred.pskey && !cred.stale)) {
+          const extra = {};
+          if (p.markdown) {
+            extra.content_with_style = { paragraphs: mdToParagraphs(p.text) };
+          }
+          result = await webPublish({
+            guildId: p.guildId, channelId: p.channelId, text: p.text,
+            tinyid: p.posterId, images: p.images, extraFeedFields: extra
+          });
+          if (result.ok) { res.end(JSON.stringify({ via: 'web', ...result })); return; }
+          if (channel === 'web') {
+            res.statusCode = 502;
+            res.end(JSON.stringify({ ok: false, via: 'web', ...result }));
+            return;
+          }
+          // auto: web 失败回退 native
+        }
+      }
+      // native 通道同样支持 markdown：段落转换在 Node 侧完成，agent 只负责组装
+      try {
+        const paragraphs = p.markdown ? mdToParagraphs(p.text) : null;
+        const r = await callBridge('publish', [p.guildId, p.channelId, p.text, p.posterId || POSTER_ID, p.images || [], paragraphs]);
+        const published = r && r.idd;
+        if (published) {
+          res.end(JSON.stringify({ ok: true, via: 'native', ...r }));
+          return;
+        }
+        if (channel === 'native') {
+          res.statusCode = 502;
+          res.end(JSON.stringify({ ok: false, via: 'native', ...r }));
+          return;
+        }
+        // auto: native 失败（如真机离线）→ browser UI 兜底
+        res.end(JSON.stringify({
+          ok: true, via: 'browser-ui', nativeAttempt: r,
+          ...publishViaBrowser({ guildSlug: p.guildSlug || 'apksccbox9527', text: p.text, images: p.imageFiles || [] })
+        }));
+      } catch (nativeErr) {
+        if (channel === 'native') throw nativeErr;
+        res.end(JSON.stringify({
+          ok: true, via: 'browser-ui', nativeError: String(nativeErr.message || nativeErr),
+          ...publishViaBrowser({ guildSlug: p.guildSlug || 'apksccbox9527', text: p.text, images: p.imageFiles || [] })
+        }));
+      }
       return;
     }
     res.statusCode = 404;
