@@ -312,7 +312,61 @@ Java.perform(function () {
       implements: [Java.use('com.tencent.qqnt.kernelgpro.nativeinterface.IGProCreateUploadFileGroupCallback')],
       methods: {
         onCreateUploadFileGroupResult: function (code, msg, info) {
-          send(TAG + 'createFileGroupUpload result=' + code + ' ' + String(msg));
+          // info 判别：kernel 真执行 → 新对象；M1 队列失败(failFn) → 回传输入的 fileGroupInfo 原对象
+          var infoStr = 'null';
+          try { infoStr = String(info) + ' hash=' + info.hashCode(); } catch (e) {}
+          send(TAG + 'createFileGroupUpload result=' + code + ' msg=' + String(msg) + ' info=' + infoStr);
+          // kernel 确认收到 create（任务 PAUSED）后才 add listener + resume：
+          // 之前 add/resume 与 create 同时入队，listener 事件从未出现，怀疑 add 未生效
+          try {
+            var ctx = g.uploadCtx;
+            if (ctx && ctx.svc) {
+              ctx.svc.addFileUploadListener(g.uploadListenerInstance);
+              send(TAG + 'listener added after kernel create ack');
+              ctx.svc.resumeFileGroupUpload(ctx.gid, g.resumeCbInstance);
+              send(TAG + 'resume sent after listener add');
+            }
+          } catch (e) { send(TAG + 'post-create setup threw: ' + e); }
+        }
+      }
+    }).$new();
+    // resume 启动上传用的操作回调（真实客户端 create 后立即 resumeFileGroupUpload）
+    g.resumeCbInstance = Java.registerClass({
+      name: 'org.rea.NodeResumeCb',
+      implements: [Java.use('com.tencent.qqnt.kernelgpro.nativeinterface.IGProTransferFileOperateCallback')],
+      methods: {
+        onResult: function (code, msg) {
+          send(TAG + 'resumeFileGroupUpload result=' + code + ' ' + String(msg));
+        }
+      }
+    }).$new();
+    // getFileGroupInfo 轮询回调：listener 回调对 frida 注册类不可达（kernel native 持引用失效），
+    // 改为主动查询任务状态（code/msg/result{fileGroupInfo, fileParams[]}）
+    g.getGroupCbInstance = Java.registerClass({
+      name: 'org.rea.NodeGetGroupCb',
+      implements: [Java.use('com.tencent.qqnt.kernelgpro.nativeinterface.IGProGetUploadFileGroupInfoCallback')],
+      methods: {
+        onGetFileGroupInfoCallback: function (code, msg, result) {
+          try {
+            if (result === null) return;
+            var gi = result.getFileGroupInfo(); // getter（直接字段包装不可用）
+            var gid = String(gi.fileGroupId.value);
+            var rec = g.uploadHolder[gid];
+            if (!rec) return;
+            rec.status = String(gi.uploadStatus.value);
+            rec.errorCode = gi.errorCode.value;
+            rec.errorMsg = String(gi.errorMsg.value);
+            // 取首个文件的 svr 信息
+            var fps = result.getFileParams();
+            if (fps !== null && fps.size() > 0) {
+              var f0 = fps.get(0);
+              rec.md5 = String(f0.md5.value);
+              rec.svrUrl = String(f0.svrUrl.value);
+              rec.svrFileId = String(f0.svrFileId.value);
+              rec.fileSize = f0.totalFileSize.value;
+            }
+            send(TAG + 'poll ' + gid.slice(0, 8) + ' status=' + rec.status + ' err=' + rec.errorCode + ' url=' + (rec.svrUrl || '').slice(0, 50) + ' md5=' + rec.md5);
+          } catch (e) { send(TAG + 'poll err ' + e); }
         }
       }
     }).$new();
@@ -322,89 +376,122 @@ Java.perform(function () {
   }
 });
 
+// Resolve guild file transfer service with diagnostics.
+// GProSessionImpl.getGuildFileTransferService() returns null when gproWrapperSession==null
+// or isStartFinish=false — observed even while the real client uploads fine, so fall back
+// to the kernel wrapper session (IQQGProWrapperSession.getGuildFileTransferService).
+function resolveTransferSvc() {
+  var svc = null;
+  try { svc = g.session.getGuildFileTransferService(); } catch (e0) {
+    send(TAG + 'session.getGuildFileTransferService threw: ' + e0);
+  }
+  if (svc !== null) return svc;
+  try {
+    var GI = g.fGuild.use('com.tencent.mobileqq.qqguildsdk.api.impl.GProSessionImpl');
+    var impl = Java.cast(g.session, GI);
+    var isf = '?';
+    try { isf = impl.isStartFinish.value.get(); } catch (e1) { isf = 'err ' + e1; }
+    var ws = null;
+    try { ws = impl.gproWrapperSession.value; } catch (e2) {}
+    send(TAG + 'transferSvc diag isStartFinish=' + isf + ' wrapperSession=' + (ws === null || ws === undefined ? 'null' : 'ok'));
+    if (ws !== null && ws !== undefined) {
+      var ksvc = ws.getGuildFileTransferService(); // IKernelGuildFileTransferService
+      send(TAG + 'kernel transfer service obtained via wrapper session');
+      return ksvc;
+    }
+  } catch (e3) {
+    send(TAG + 'resolveTransferSvc fallback err: ' + e3);
+  }
+  return null;
+}
+
+// kernel 层服务（IKernelGuildFileTransferService）：getFileGroupInfo 等 kernel-only 方法在此
+function getKernelTransferSvc() {
+  var GI = g.fGuild.use('com.tencent.mobileqq.qqguildsdk.api.impl.GProSessionImpl');
+  var impl = Java.cast(g.session, GI);
+  var ws = impl.gproWrapperSession.value;
+  return ws === null || ws === undefined ? null : ws.getGuildFileTransferService();
+}
+
 // Upload one image via kernel guildFileTransferService.
-// absPath must exist on the device (adb-push'ed). uploadGuildId = 发帖目标 guild（extInfo 归属）。
+// absPath must exist on the device (adb-push'ed). uploadGuildId 保留接口但真实客户端 extInfo 为空。
 // Returns via polling g.uploadHolder.
 function uploadImage(absPath, fileName, width, height, fileSize, uploadGuildId) {
   init();
   var JUUID = Java.use('java.util.UUID');
-  var JLong = Java.use('java.lang.Long');
   var gid = JUUID.randomUUID().toString();
-  var fileId = JUUID.randomUUID().toString();
   g.uploadHolder[gid] = { status: null, url: null, fileId: null, md5: null };
   return new Promise(function (resolve) {
-    // 阶段1：先注册 listener（包装类把注册排队异步执行，须先于 create 完成以免事件竞态丢失）
+    // 与真实客户端完全一致的顺序（2026-11-15 抓包）：create → resume → addFileUploadListener。
+    // 此前 add 在 create 前 3s 注册（走的 wrapper 实例路径不同），kernel 从未回调上传事件。
     Java.scheduleOnMainThread(function () {
       try {
-        var svc0 = g.session.getGuildFileTransferService();
-        svc0.addFileUploadListener(g.uploadListenerInstance);
-        send(TAG + 'uploadImage listener registered');
-      } catch (e0) {
-        send(TAG + 'listener register threw: ' + e0);
-        resolve({ ok: false, error: String(e0) });
+        var svc = resolveTransferSvc();
+        if (svc === null) throw new Error('transfer service unavailable (wrapper session null / kernel not started)');
+        var KPICTURE = g.NI.UploadFileType.KPICTURE.value;
+        // 真实抓包：kernel 层几乎全空——fileId/childFileIds=GuildNativeSon-<14位>-<n>（非 UUID）、
+        //   fileName='', width/height/size=0、extInfo 全空；只填 fileGroupId(UUID)、filePath、
+        //   appType=25、fileType=KPICTURE、isOriginal=false。md5/sha1 由 native 计算。
+        var sonId = 'GuildNativeSon-' + (Date.now() * 10 + Math.floor(Math.random() * 10)) + '-1';
+        var info = g.NI.UploadFileInfo.$new();
+        info.fileGroupId.value = gid;
+        info.fileId.value = sonId;
+        info.filePath.value = absPath;
+        info.fileName.value = '';
+        info.fileWidth.value = 0;
+        info.fileHeight.value = 0;
+        info.totalFileSize.value = 0;
+        info.appType.value = 25; // native capture: guild feed uses appType 25
+        info.isOriginal.value = false;
+        info.fileType.value = KPICTURE;
+        var groupInfo = g.NI.UploadGroupInfo.$new();
+        groupInfo.fileGroupId.value = gid;
+        var childIds = Java.use('java.util.ArrayList').$new();
+        childIds.add(sonId);
+        groupInfo.childFileIds.value = childIds;
+        // 真实客户端 uploadFileExtInfo 为空对象（guildId=0, source=0）
+        var ExtInfoCls = useAny('com.tencent.qqnt.kernelgpro.nativeinterface.UploadFileExtInfo');
+        groupInfo.uploadFileExtInfo.value = ExtInfoCls.$new();
+        var param = g.NI.CreateParam.$new();
+        param.fileGroupInfo.value = groupInfo;
+        var params = Java.use('java.util.ArrayList').$new();
+        params.add(info);
+        param.fileParams.value = params;
+        var svcRef = Java.retain(svc);
+        g.uploadCtx = { svc: svcRef, gid: gid };
+        // 先只 create；kernel ack（回调）后再 add listener + resume（三阶段）
+        svcRef.createFileGroupUpload(param, g.createGroupCbInstance);
+        send(TAG + 'uploadImage started gid=' + gid + ' path=' + absPath);
+      } catch (e) {
+        send(TAG + 'uploadImage threw: ' + e);
+        resolve({ ok: false, error: String(e) });
+        return;
       }
-    });
-    // 阶段2：3s 后再创建上传任务（此时 listener 注册已在 kernel 侧生效）
-    setTimeout(function () {
-      Java.scheduleOnMainThread(function () {
-        try {
-          var svc = g.session.getGuildFileTransferService();
-          var KPICTURE = g.NI.UploadFileType.KPICTURE.value;
-          var info = g.NI.UploadFileInfo.$new();
-          info.fileGroupId.value = gid;
-          info.fileId.value = fileId;
-          info.filePath.value = absPath;
-          info.fileName.value = fileName;
-          info.fileWidth.value = width || 0;
-          info.fileHeight.value = height || 0;
-          info.totalFileSize.value = fileSize || 0;
-          info.appType.value = 25; // native capture: guild feed uses appType 25
-          info.isOriginal.value = false;
-          info.fileType.value = KPICTURE;
-          var groupInfo = g.NI.UploadGroupInfo.$new();
-          groupInfo.fileGroupId.value = gid;
-          var childIds = Java.use('java.util.ArrayList').$new();
-          childIds.add(fileId);
-          groupInfo.childFileIds.value = childIds;
-          // UploadFileExtInfo 必须带归属上下文（静态逆向 out4/UploadFileExtInfo.java +
-          // GuildFeedFileUploadServiceApiImpl.java:352-425）：
-          //   guildId=发帖目标 guild, source=UPLOAD_SOURCE_PUBLISH_FEED(1)。
-          // 空对象时 kernel 校验不过（此前 errno=2 GetFileInfo error 的嫌疑根因）。
-          var ExtInfoCls = useAny('com.tencent.qqnt.kernelgpro.nativeinterface.UploadFileExtInfo');
-          var extInfo = ExtInfoCls.$new();
-          extInfo.guildId.value = JLong.parseLong(uploadGuildId);
-          extInfo.source.value = 1; // UPLOAD_SOURCE_PUBLISH_FEED
-          extInfo.feedId.value = '';
-          groupInfo.uploadFileExtInfo.value = extInfo;
-          var param = g.NI.CreateParam.$new();
-          param.fileGroupInfo.value = groupInfo;
-          var params = Java.use('java.util.ArrayList').$new();
-          params.add(info);
-          param.fileParams.value = params;
-          var svcRef = Java.retain(svc);
-          svcRef.addFileUploadListener(g.uploadListenerInstance);
-          svcRef.createFileGroupUpload(param, g.createGroupCbInstance);
-          send(TAG + 'uploadImage started gid=' + gid + ' path=' + absPath);
-        } catch (e) {
-          send(TAG + 'uploadImage threw: ' + e);
-          resolve({ ok: false, error: String(e) });
-          return;
-        }
-        var waited = 0;
-        var t = setInterval(function () {
-          var rec = g.uploadHolder[gid];
-          waited += 500;
-          if (rec && (rec.status === 'KUPLOADSUCCESS' || rec.status === 'KUPLOADFAILED' || waited > 90000)) {
-            clearInterval(t);
-            if (rec.status === 'KUPLOADSUCCESS') {
-              resolve({ ok: true, taskId: gid, url: rec.svrUrl, svrFileId: rec.svrFileId, md5: rec.md5, size: rec.fileSize });
-            } else {
-              resolve({ ok: false, error: 'upload status=' + rec.status + ' err=' + rec.errorCode + ' ' + (rec.errorMsg || ''), taskId: gid });
-            }
+      var waited = 0;
+      var ksvc = null;
+      try { ksvc = getKernelTransferSvc(); } catch (eK) { send(TAG + 'kernel svc err ' + eK); }
+      var t = setInterval(function () {
+        var rec = g.uploadHolder[gid];
+        waited += 3000;
+        // listener 回调对 frida 注册类不可达 → 每 3s 主动查询 kernel 任务状态
+        // （更高频轮询曾伴随 kernel native crash，保持低频）
+        if (ksvc !== null) {
+          try { ksvc.getFileGroupInfo(gid, g.getGroupCbInstance); } catch (e) {
+            send(TAG + 'poll call threw: ' + e);
           }
-        }, 500);
-      });
-    }, 3000);
+        }
+        if (rec && (rec.status === 'KUPLOADSUCCESS' || rec.status === 'KUPLOADFAILED' || waited > 90000)) {
+          clearInterval(t);
+          // 清理 kernel 任务（防 PAUSED 任务堆积）
+          try { ksvc.removeFileGroupUpload(gid, g.resumeCbInstance); } catch (e) {}
+          if (rec.status === 'KUPLOADSUCCESS') {
+            resolve({ ok: true, taskId: gid, url: rec.svrUrl, svrFileId: rec.svrFileId, md5: rec.md5, size: rec.fileSize });
+          } else {
+            resolve({ ok: false, error: 'upload status=' + rec.status + ' err=' + rec.errorCode + ' ' + (rec.errorMsg || ''), taskId: gid });
+          }
+        }
+      }, 3000);
+    });
   });
 }
 
