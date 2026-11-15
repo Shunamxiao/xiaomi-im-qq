@@ -20,34 +20,66 @@ const PORT = 8901;
 const POSTER_ID = process.env.QQ_POSTER_ID || '144115219939370567'; // 账号在频道内的 tinyid
 
 // ---------- bridge ----------
-const bridge = spawn('wsl.exe', ['-e', 'python3', '/mnt/d/xiaomi-im-qq/qq-channel-service/bridge/bridge.py'], {
-  stdio: ['pipe', 'pipe', 'pipe']
-});
+// wsl.exe 里的 bridge.py 可能随 WSL VM 回收/frida 异常而退出——监听 exit 自动重启，
+// 否则请求会写入死管道，一直挂到 65s 超时。
+let bridge = null;
+let bridgeReady = false;
 let nextId = 1;
 const pending = new Map();
 
-bridge.stdout.setEncoding('utf8');
-let buf = '';
-bridge.stdout.on('data', (d) => {
-  buf += d;
-  let idx;
-  while ((idx = buf.indexOf('\n')) >= 0) {
-    const line = buf.slice(0, idx).trim();
-    buf = buf.slice(idx + 1);
-    if (!line) continue;
-    let msg;
-    try { msg = JSON.parse(line); } catch { continue; }
-    if (msg.event) { console.log('[bridge]', msg.data); continue; }
-    if (msg.id !== undefined && pending.has(msg.id)) {
-      pending.get(msg.id)(msg);
-      pending.delete(msg.id);
-    }
-  }
-});
-bridge.stderr.setEncoding('utf8');
-bridge.stderr.on('data', (d) => console.error('[bridge-err]', d.trim()));
+function failPending(reason) {
+  for (const cb of pending.values()) cb({ ok: false, error: reason });
+  pending.clear();
+}
 
-function callBridge(action, args, timeoutMs = 65000) {
+function startBridge() {
+  bridgeReady = false;
+  bridge = spawn('wsl.exe', ['-e', 'python3', '/mnt/d/xiaomi-im-qq/qq-channel-service/bridge/bridge.py'], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+  bridge.stdout.setEncoding('utf8');
+  let buf = '';
+  bridge.stdout.on('data', (d) => {
+    buf += d;
+    let idx;
+    while ((idx = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line) continue;
+      let msg;
+      try { msg = JSON.parse(line); } catch { continue; }
+      if (msg.event) {
+        if (msg.data && msg.data.indexOf('attached') === 0) bridgeReady = true;
+        console.log('[bridge]', msg.data);
+        continue;
+      }
+      if (msg.id !== undefined && pending.has(msg.id)) {
+        pending.get(msg.id)(msg);
+        pending.delete(msg.id);
+      }
+    }
+  });
+  bridge.stderr.setEncoding('utf8');
+  bridge.stderr.on('data', (d) => console.error('[bridge-err]', d.trim()));
+  bridge.on('exit', (code) => {
+    console.error('[bridge] exited code=' + code + ' — respawn in 3s');
+    failPending('bridge exited');
+    bridgeReady = false;
+    setTimeout(() => { if (!bridgeReady) startBridge(); }, 3000);
+  });
+}
+startBridge();
+
+async function waitBridgeReady(timeoutMs) {
+  const t0 = Date.now();
+  while (!bridgeReady) {
+    if (Date.now() - t0 > timeoutMs) throw new Error('bridge not ready (wsl/frida attach failed)');
+    await new Promise((r) => setTimeout(r, 300));
+  }
+}
+
+async function callBridge(action, args, timeoutMs = 65000) {
+  await waitBridgeReady(timeoutMs);
   const id = nextId++;
   return new Promise((resolve, reject) => {
     pending.set(id, (msg) => {

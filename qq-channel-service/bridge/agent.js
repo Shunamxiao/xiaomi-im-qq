@@ -349,23 +349,28 @@ Java.perform(function () {
         onGetFileGroupInfoCallback: function (code, msg, result) {
           try {
             if (result === null) return;
-            var gi = result.getFileGroupInfo(); // getter（直接字段包装不可用）
+            var gi = result.getFileGroupInfo();
             var gid = String(gi.fileGroupId.value);
             var rec = g.uploadHolder[gid];
             if (!rec) return;
             rec.status = String(gi.uploadStatus.value);
             rec.errorCode = gi.errorCode.value;
             rec.errorMsg = String(gi.errorMsg.value);
-            // 取首个文件的 svr 信息
-            var fps = result.getFileParams();
-            if (fps !== null && fps.size() > 0) {
-              var f0 = fps.get(0);
-              rec.md5 = String(f0.md5.value);
-              rec.svrUrl = String(f0.svrUrl.value);
-              rec.svrFileId = String(f0.svrFileId.value);
-              rec.fileSize = f0.totalFileSize.value;
-            }
-            send(TAG + 'poll ' + gid.slice(0, 8) + ' status=' + rec.status + ' err=' + rec.errorCode + ' url=' + (rec.svrUrl || '').slice(0, 50) + ' md5=' + rec.md5);
+            // fileParams 元素的字段/getter 访问在 kernel JNI 对象上均不可靠（undefined /
+            // not a function），但 toString 完整含所有字段——直接解析
+            try {
+              var ts = String(result);
+              var fsec = ts.slice(ts.indexOf('fileParams=['));
+              var mMd5 = fsec.match(/,md5=([^,}]*)/);
+              var mSvrFileId = fsec.match(/,svrFileId=([\s\S]*?),svrUrl=/);
+              var mUrl = fsec.match(/,svrUrl=([\s\S]*?),errorCode=/);
+              var mSize = fsec.match(/,totalFileSize=(\d+)/);
+              if (mMd5) rec.md5 = mMd5[1];
+              if (mSvrFileId) rec.svrFileId = mSvrFileId[1];
+              if (mUrl) rec.svrUrl = mUrl[1];
+              if (mSize) rec.fileSize = parseInt(mSize[1], 10);
+            } catch (eP) { send(TAG + 'parse fileParams err ' + eP); }
+            send(TAG + 'poll ' + gid.slice(0, 8) + ' status=' + rec.status + ' err=' + rec.errorCode + ' url=' + (rec.svrUrl || '').slice(0, 60) + ' md5=' + rec.md5);
           } catch (e) { send(TAG + 'poll err ' + e); }
         }
       }
@@ -482,8 +487,9 @@ function uploadImage(absPath, fileName, width, height, fileSize, uploadGuildId) 
         }
         if (rec && (rec.status === 'KUPLOADSUCCESS' || rec.status === 'KUPLOADFAILED' || waited > 90000)) {
           clearInterval(t);
-          // 清理 kernel 任务（防 PAUSED 任务堆积）
-          try { ksvc.removeFileGroupUpload(gid, g.resumeCbInstance); } catch (e) {}
+          // 注：曾在此处调 removeFileGroupUpload 清理任务，但第 4 次测试在 poll SUCCESS 后
+          // 紧接着 kernel 崩溃（QQ 主进程死）——该调用嫌疑最大，先移除；PAUSED 任务残留
+          // 由 QQ 自身任务表管理，暂不主动清理
           if (rec.status === 'KUPLOADSUCCESS') {
             resolve({ ok: true, taskId: gid, url: rec.svrUrl, svrFileId: rec.svrFileId, md5: rec.md5, size: rec.fileSize });
           } else {
